@@ -94,19 +94,18 @@ static void OnTaskPaintListItem(WindowControl * Sender, HDC hDC){
     int i = LowLimit + DrawListIndex;
 
     if (Task[i].Index>=0) {
-      if (ScreenLandscape && 
-          AATEnabled && ValidTaskPoint(i+1) && (i>0)) {
+      if (AATEnabled && ValidTaskPoint(i+1) && (i>0)) {
         if (Task[i].AATType==0) {
-          _stprintf(sTmp, TEXT("%s %.1f"), 
+          _stprintf(sTmp, TEXT("%s %.1f"),
                     WayPointList[Task[i].Index].Name,
                     Task[i].AATCircleRadius*DISTANCEMODIFY);
         } else {
-          _stprintf(sTmp, TEXT("%s %.1f"), 
+          _stprintf(sTmp, TEXT("%s %.1f"),
                     WayPointList[Task[i].Index].Name,
                     Task[i].AATSectorRadius*DISTANCEMODIFY);
         }
       } else {
-        _stprintf(sTmp, TEXT("%s"), 
+        _stprintf(sTmp, TEXT("%s"),
                   WayPointList[Task[i].Index].Name);
       }
 
