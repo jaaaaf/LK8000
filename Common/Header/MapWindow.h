@@ -9,6 +9,8 @@
 #if !defined(AFX_MAPWINDOW_H__695AAC30_F401_4CFF_9BD9_FE62A2A2D0D2__INCLUDED_)
 #define AFX_MAPWINDOW_H__695AAC30_F401_4CFF_9BD9_FE62A2A2D0D2__INCLUDED_
 
+#include "Airspace.h"
+
 #define NORTHSMART 5
 #define NORTHTRACK 4
 #define TRACKCIRCLE 3
@@ -47,6 +49,29 @@
 #define TEXT_MIDDLE_RIGHT   8
 #define TEXT_MIDDLE_CENTER  9
 
+
+#include "RGB.h"
+
+// NOT USED ANYMORE, USE RGB_xxx as color definition
+// Used by MapWindow::TextColor 
+// 5 bits (0-30) . Some colors unused
+// #define TEXTBLACK 0
+// #define TEXTWHITE 1
+// #define TEXTGREEN 2
+// #define TEXTRED 3
+// #define TEXTBLUE 4
+// #define TEXTYELLOW 5
+// #define TEXTCYAN 6
+// #define TEXTMAGENTA 7
+// #define TEXTGREY 8
+// #define TEXTORANGE 9
+// #define TEXTLIGHTGREEN 10
+// #define TEXTLIGHTRED 11
+// #define TEXTLIGHTBLUE 12
+// #define TEXTLIGHTYELLOW 13
+// #define TEXTLIGHTCYAN 14
+// #define TEXTLIGHTGREY 15
+// #define TEXTLIGHTORANGE 16
 
 // VENTA3 note> probably it would be a good idea to separate static WP data to dynamic values,
 // by moving things like Reachable, AltArival , etc to WPCALC
@@ -192,7 +217,7 @@ class MapWindow {
     };
     
     friend class MapWindow;
-    
+    bool  _bMapScale;
     bool _inited;                                 /**< @brief Object inited flag */
     bool _autoZoom;                               /**< @brief Stores information if AutoZoom is enabled */
     bool _circleZoom;                             /**< @brief Stores information if CirclingZoom is enabled */
@@ -201,13 +226,12 @@ class MapWindow {
     double _realscale;                            /**< @brief Current map scale /1000 / DISTANCEMODIFY */
     double _modeScale[SCALE_NUM];                 /**< @brief Requested scale for each of scale types */
     double *_requestedScale;                      /**< @brief Requested scale for current scale type */
-    
     // performance related members
     double _scaleOverDistanceModify;
     double _resScaleOverDistanceModify;
     double _drawScale;
     double _invDrawScale;
-    
+
     double RequestedScale() const        { return *_requestedScale; }
     void RequestedScale(double value)    { *_requestedScale = value; }
     void CalculateTargetPanZoom();
@@ -220,6 +244,7 @@ class MapWindow {
     double GetPgCruiseZoomInitValue(int parameter_number) const;
 
   public:
+
     Zoom();
     void Reset();
     
@@ -240,7 +265,7 @@ class MapWindow {
     void EventAutoZoom(int vswitch);
     void EventSetZoom(double value);
     void EventScaleZoom(int vswitch);
-    
+    void SetLimitMapScale(BOOL bOnOff)    {  	_bMapScale =	bOnOff; };
     void UpdateMapScale();
     void ModifyMapScale();
 
@@ -363,7 +388,8 @@ class MapWindow {
   static Zoom zoom;
   static Mode mode;
 
-  static RECT MapRect;
+  static RECT MapRect;			// See explanation in MapWndProc
+  static RECT DrawRect;
   static bool ForceVisibilityScan;
 
   static bool MapDirty;
@@ -381,6 +407,12 @@ class MapWindow {
   static void DrawDashLine(HDC , const int , const POINT , const POINT , 
 			   const COLORREF , 
 			   const RECT rc);
+
+  #ifdef GTL2
+  static void DrawDashPoly(HDC hdc, const int width, const COLORREF color,
+                           POINT* pt, const int npoints, const RECT rc);
+  #endif
+
   /* Not used
   static void DrawDotLine(HDC, const POINT , const POINT , const COLORREF , 
 			  const RECT rc);
@@ -422,6 +454,7 @@ class MapWindow {
   static LRESULT CALLBACK MapWndProc (HWND hWnd, UINT uMsg, WPARAM wParam,LPARAM lParam);
 
   static bool IsMapFullScreen();
+  static bool ChangeDrawRect(const RECT rectarea);
 
   // input events or reused code
   static void Event_Pan(int vswitch);
@@ -435,11 +468,17 @@ class MapWindow {
   static rectObj CalculateScreenBounds(double scale);
   static void ScanVisibility(rectObj *bounds_active);
 
-  static int HeightToY(double fHeight, const RECT rc, DiagrammStruct* psDia);
-  static int DistanceToX(double fDist, const RECT rc,  DiagrammStruct* psDia)  ;
-
+  static int HeightToY(double fHeight,  DiagrammStruct* psDia);
+  static int DistanceToX(double fDist,  DiagrammStruct* psDia)  ;
+  static void RenderNearAirspace(HDC hdc, const RECT rci);
+  static int AirspaceTopView(HDC hdc,   DiagrammStruct* pDia, double iAS_Bearing, double wpt_brg);
+  static void RenderAirspace(HDC hdc, const RECT rc);
   static void LKDrawFlarmRadar(HDC hdc, const RECT rci);
-  static int DrawFlarmObjectTrace(HDC hDC,double fZoom, DiagrammStruct* Dia, int iFlarmIdx);
+  static void LKDrawMultimap_Example(HDC hdc, const RECT rci);
+  static void LKDrawMultimap_Test(HDC hdc, const RECT rci);
+  static void LKDrawMultimap_Asp(HDC hdc, const RECT rci);
+  static void LKDrawMultimap_Radar(HDC hdc, const RECT rci);
+  static int DrawFlarmObjectTrace(HDC hDC,double fZoom, DiagrammStruct* Dia);
  private:
   static void CalculateScreenPositions(POINT Orig, RECT rc, 
                                        POINT *Orig_Aircraft);
@@ -513,6 +552,7 @@ class MapWindow {
   static double LKDrawTrail(HDC hdc, const POINT Orig, const RECT rc);
   static void DrawTeammate(HDC hdc, const RECT rc);
   static void DrawOffTrackIndicator(HDC hdc, const RECT rc);
+  static void DrawProjectedTrack(HDC hdc, const RECT rc, const POINT Orig);
   static void DrawStartSector(HDC hdc, const RECT rc, POINT &Start,
                               POINT &End, int Index);
   static void DrawTask(HDC hdc, RECT rc, const POINT &Orig_Aircraft);
@@ -607,6 +647,9 @@ class MapWindow {
   static      HPEN hpMapScale2;
   static      HPEN hpTerrainLine;
   static      HPEN hpTerrainLineBg;
+#ifdef GTL2
+  static      HPEN hpTerrainLine2Bg; // for next-WP glide terrain line
+#endif
   static      HPEN hpVisualGlideLightRed; // VENTA3
   static      HPEN hpVisualGlideHeavyRed; // 
   static      HPEN hpVisualGlideLightBlack; // VENTA3
@@ -690,6 +733,8 @@ private:
   #else
   static bool checkLabelBlock(RECT rc);
   #endif
+  static void ResetLabelDeclutter(void);
+  static void SaturateLabelDeclutter(void);
   static bool RenderTimeAvailable();
   static int SnailWidthScale; 
   static bool TargetMoved(double &longitude, double &latitude);
@@ -702,6 +747,9 @@ private:
   static void CalculateOrientationNormal(void);
 
   static POINT Groundline[NUMTERRAINSWEEPS+1];
+#ifdef GTL2
+  static POINT Groundline2[NUMTERRAINSWEEPS+1];
+#endif
 
   static bool targetMoved;
   static double targetMovedLat;

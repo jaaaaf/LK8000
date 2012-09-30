@@ -166,7 +166,11 @@ goto_bearing:
 				_stprintf(BufferTitle, MsgToken(1010));
 			else
 				_stprintf(BufferTitle, TEXT("%s"), Data_Options[lkindex].Title );
-			value=DerivedDrawInfo.LD;
+
+			if (DerivedDrawInfo.Flying)
+				value=DerivedDrawInfo.LD;
+			else
+				value=0;
 			if (value <-99 ||  value >=ALTERNATE_MAXVALIDGR ) {
 				strcpy(text,INFINVAL);
 				valid=true;
@@ -1500,19 +1504,22 @@ goto_bearing:
 					value=DerivedDrawInfo.AverageLD;
 				else
 					value=0;
-				if (value <1 ||  value >=ALTERNATE_MAXVALIDGR ) {
-					strcpy(text,INFINVAL); 
-					valid=true;
-				} else
-					if (value==0)
-						sprintf(text,NULLMEDIUM);
-					else {
+
+				if (value==0) {
+					sprintf(text,NULLMEDIUM);
+				} else {
+					if (value <1 ||  value >=ALTERNATE_MAXVALIDGR ) {
+						strcpy(text,INFINVAL); 
+						valid=true;
+					} else {
+
 						if (value<100)
 							sprintf(text,"%.1f",value);
 						else
 							sprintf(text,"%2.0f",value);
 						valid=true;
 					}
+				}
 				wsprintf(BufferValue, TEXT("%S"),text);
 			}
 			break;

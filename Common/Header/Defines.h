@@ -378,10 +378,12 @@
 #define MSM_INFO_CONTEST	15
 #define MSM_AIRSPACES		16
 #define MSM_THERMALS		17
-#define MSM_RADAR		18
-// turnaround point is TOP (equal to last TRI define), 
+#define MSM_MAPRADAR		18	// this is multimapped
+#define MSM_MAPASP		19	// this is multimapped
+#define MSM_MAPTEST		20	// multimapped, for testing purposes
+// turnaround point is TOP 
 // remember that arrays must count from zero, so MSM_TOP+1
-#define MSM_TOP			18
+#define MSM_TOP			20
 //
 // THIS CONFIGURATION GIVES THE ORDER OF MENUs. ALL ITEMS MUST ALSO BE ADDED INSIDE INITMODETABLE()
 // in Utils2.cpp WHERE each mode is paired with an MSM_xxx item.
@@ -398,7 +400,10 @@
 //
 #define MP_WELCOME		0
 #define MP_MOVING		1
-#define MP_TOP			1
+#define MP_MAPASP		2
+#define MP_RADAR		3
+#define MP_TEST			4
+#define MP_TOP			4
 //
 // WP mode
 //
@@ -430,8 +435,7 @@
 #define TF_LIST			0
 #define IM_TRF			1
 #define IM_TARGET		2
-#define IM_RADAR		3
-#define TF_TOP			3
+#define TF_TOP			2
 
 //
 // How many sort boxes in nearest pages we can have, on the top line, normally 0-4 plus 1 spare
@@ -446,9 +450,13 @@
 #define LKEVENT_PAGEDOWN	3
 #define LKEVENT_UP		4
 #define LKEVENT_DOWN		5
+#define LKEVENT_TOPLEFT		6
+#define LKEVENT_TOPRIGHT	7
 //
 #define LKEVENT_NEWRUN		9
-#define LKEVENT_NEWPAGE		10
+#define LKEVENT_NEWPAGE		10	// this is for both up and now, out of multimap 
+#define LKEVENT_LONGCLICK	11
+
 // Virtual Keys Gestures
 // Detected in MapWindow and passed to ProcessVirtualKey in Utils2
 #define LKGESTURE_NONE		0
@@ -832,8 +840,15 @@
 #define ISGAAIRCRAFT (AircraftCategory == (AircraftCategory_t)umGAaircraft)
 
 #define CURTYPE ModeType[ModeIndex]
+// CURMODE is the MSM_xxx page, independent from Type, any place. Example: check if we are in MSM_TRAFFIC
+// Once set, MapSpaceMode becomes CURMODE
+#define CURMODE ModeTable[ModeIndex][CURTYPE]
 #define INVERTCOLORS  (Appearance.InverseInfoBox)
 #define TASKINDEX       Task[ActiveWayPoint].Index
+#ifdef GTL2
+#define ACTIVE_WP_IS_AAT_AREA (AATEnabled && (ActiveWayPoint > 0) \
+                              && ValidTaskPoint(ActiveWayPoint + 1))
+#endif
 
 #define DONTDRAWTHEMAP !MapWindow::mode.AnyPan()&&MapSpaceMode!=MSM_MAP
 #define MAPMODE8000    !MapWindow::mode.AnyPan()&&MapSpaceMode==MSM_MAP

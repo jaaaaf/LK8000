@@ -14,6 +14,7 @@
 #include "Modeltype.h"
 
 extern void LoadSplash(HDC hDC, TCHAR *splashfile);
+extern void LKDrawMultimap_Asp(HDC hdc,RECT rc);
 
 //
 // Called by LKDrawLook8000, this is what happens when there is no map to be drawn:
@@ -122,6 +123,15 @@ RECT frc = rc;
 
 		DrawWelcome8000(hdc, rc);
 		break;
+	case MSM_MAPASP:
+		LKDrawMultimap_Asp(hdc,rc);
+		break;
+	case MSM_MAPRADAR:
+		LKDrawMultimap_Radar(hdc,rc);
+		break;
+	case MSM_MAPTEST:
+		LKDrawMultimap_Test(hdc,rc);
+		break;
 	case MSM_LANDABLE:
 	case MSM_NEARTPS:
 	case MSM_AIRPORTS:
@@ -152,12 +162,7 @@ RECT frc = rc;
 	case MSM_THERMALS:
 		DrawThermalHistory(hdc,rc);
 		break;
-	case MSM_RADAR:
-		frc = rc;
 
-		frc.bottom = frc.bottom - BottomSize - NIBLSCALE(2);
-		LKDrawFlarmRadar(hdc,frc);
-		break;
   default:
     memset((void*)&TextDisplayMode, 0, sizeof(TextDisplayMode));
     TextDisplayMode.Color = RGB_WHITE;

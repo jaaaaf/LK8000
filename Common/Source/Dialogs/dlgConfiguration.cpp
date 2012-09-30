@@ -1221,6 +1221,14 @@ static void OnWaypointNewClicked(WindowControl * Sender){
   WAYPOINT edit_waypoint;
   edit_waypoint.Latitude = GPS_INFO.Latitude;
   edit_waypoint.Longitude = GPS_INFO.Longitude;
+
+  WaypointAltitudeFromTerrain(&edit_waypoint);
+  if (!SIMMODE) {
+	// If we have a real fix and a real altiude, adopt it if terrain is lower.
+	// Since we dont create waypoints in flight, we are on ground there. We assume this.
+	if (GPS_INFO.Altitude >edit_waypoint.Altitude)
+		edit_waypoint.Altitude=GPS_INFO.Altitude;
+  }
   edit_waypoint.FileNum = 0; // default, put into primary waypoint file
   edit_waypoint.Flags = 0;
   edit_waypoint.Comment=(TCHAR*)malloc(100*sizeof(TCHAR));
@@ -1991,6 +1999,12 @@ static void setVariables(void) {
     dfe->addEnumText(gettext(TEXT("_@M393_")));
 	// LKTOKEN  _@M609_ = "Shade" 
     dfe->addEnumText(gettext(TEXT("_@M609_")));
+    #ifdef GTL2
+        // LKTOKEN  _@M94_  = "Line+NextWP"
+    dfe->addEnumText(gettext(TEXT("_@M94_")));
+        // LKTOKEN  _@M99_  = "Shade+NextWP"
+    dfe->addEnumText(gettext(TEXT("_@M99_")));
+    #endif
     dfe->Set(FinalGlideTerrain);
     wp->RefreshDisplay();
   }

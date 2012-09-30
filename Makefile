@@ -338,6 +338,9 @@ DRAW	:=\
 	$(DRW)/DrawHeading.cpp \
 	$(DRW)/DrawLKAlarms.cpp \
 	$(DRW)/DrawMapScale.cpp \
+	$(DRW)/DrawMultimap_Asp.cpp \
+	$(DRW)/DrawMultimap_Radar.cpp \
+	$(DRW)/DrawMultimap_Test.cpp \
 	$(DRW)/DrawRunway.cpp \
 	$(DRW)/DrawStartSector.cpp \
 	$(DRW)/DrawTRI.cpp \
@@ -377,9 +380,13 @@ DRAW	:=\
 	$(DRW)/MapWindow_Utils.cpp \
 	$(DRW)/MapWndProc.cpp \
 	$(DRW)/OrigAndOrient.cpp \
+	$(DRW)/RenderAirspace.cpp\
+	$(DRW)/RenderAirspaceTerrain.cpp\
 	$(DRW)/RenderMapWindow.cpp \
 	$(DRW)/RenderMapWindowBg.cpp \
+	$(DRW)/RenderNearAirspace.cpp\
 	$(DRW)/ScreenLatLon.cpp \
+	$(DRW)/Sideview.cpp \
 	$(DRW)/TextInBox.cpp \
 	$(DRW)/UpdateAndRefresh.cpp \
 
@@ -601,10 +608,6 @@ DLGS	:=\
 	$(DLG)/dlgWayPointSelect.cpp \
 	$(DLG)/dlgWaypointOutOfTerrain.cpp \
 	$(DLG)/dlgWindSettings.cpp \
-	$(DLG)/RenderAirspace.cpp\
-	$(DLG)/RenderAirspaceTerrain.cpp\
-	$(DLG)/RenderNearAirspace.cpp\
-	$(DLG)/Sideview.cpp \
 	$(DLG)/Task/AdjustAATTargets.cpp\
 	$(DLG)/Task/InsertWaypoint.cpp\
 	$(DLG)/Task/LoadTaskWaypoints.cpp\

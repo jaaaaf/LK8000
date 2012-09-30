@@ -8,9 +8,54 @@
 
 #include "externs.h"
 #include "RGB.h"
+#include "MapWindow.h"
 #include "Sideview.h"
+#include "LKInterface.h"
+#include "Terrain.h"
+extern double fSplitFact;
+extern COLORREF  Sideview_TextColor;
 
+COLORREF  Sideview_TextColor = RGB_WHITE;
+using std::min;
+using std::max;
 
+ int Sideview_asp_heading_task=0;
+
+int SetSplitScreenSize(int iPercent)
+{
+int iOld = 	(int)(fSplitFact *100.0);
+ fSplitFact = (double)(iPercent%100)/ 100.0f;
+
+ return iOld;
+}
+
+int IncSideviewPage(void)
+{
+	Sideview_asp_heading_task++;
+	if (Sideview_asp_heading_task >= NO_SIDEVIEW_PAGES)
+	  Sideview_asp_heading_task =0;
+	return Sideview_asp_heading_task;
+}
+
+int DecSideviewPage(void)
+{
+	Sideview_asp_heading_task--;
+	if (Sideview_asp_heading_task < 0)
+	  Sideview_asp_heading_task = NO_SIDEVIEW_PAGES-1;
+	return Sideview_asp_heading_task;
+}
+
+int GetSideviewPage (void)
+{
+return Sideview_asp_heading_task;
+}
+int SetSideviewPage (int i)
+{
+int oldPage = Sideview_asp_heading_task;
+	Sideview_asp_heading_task = i;
+
+return oldPage;
+}
 
 void DrawTelescope(HDC hdc, double fAngle, int x, int y)
 {
@@ -70,6 +115,7 @@ SelectObject(hdc, oldBPen);
 
 void DrawNorthArrow(HDC hdc, double fAngle, int x, int y)
 {
+BOOL bInvCol = true ; //INVERTCOLORS
   // Draw north arrow
   POINT Arrow[5] = { {0,-11}, {-5,9}, {0,3}, {5,9}, {0,-11}};
   DrawWindRoseDirection( hdc, AngleLimit360( fAngle ),  x,  y + NIBLSCALE(18));
@@ -78,13 +124,13 @@ void DrawNorthArrow(HDC hdc, double fAngle, int x, int y)
   HPEN	oldBPen ;
   HBRUSH oldBrush ;
   oldBPen= (HPEN) SelectObject(hdc, GetStockObject(WHITE_PEN));
-  if(INVERTCOLORS)
+  if(bInvCol)
 	  oldBrush = (HBRUSH) SelectObject(hdc, GetStockObject(BLACK_BRUSH));
   else
 	  oldBrush = (HBRUSH) SelectObject(hdc, GetStockObject(WHITE_BRUSH));
   Polygon(hdc,Arrow,5);
 
-  if(INVERTCOLORS)
+  if(bInvCol)
 	SelectObject(hdc, GetStockObject(WHITE_PEN));
   else
 	SelectObject(hdc, GetStockObject(BLACK_PEN));
@@ -99,6 +145,7 @@ void DrawNorthArrow(HDC hdc, double fAngle, int x, int y)
 
 void DrawWindRoseDirection(HDC hdc, double fAngle, int x, int y)
 {
+BOOL bInvCol = true ; //INVERTCOLORS
 TCHAR text[80];
 SIZE tsize;
 #define DEG_RES 45
@@ -128,7 +175,7 @@ switch (iHead)
 };
 
 SetBkMode(hdc, TRANSPARENT);
- if(INVERTCOLORS)
+ if(bInvCol)
    SetTextColor(hdc, RGB_BLACK);
  else
    SetTextColor(hdc, RGB_WHITE);
@@ -142,12 +189,15 @@ return;
 
 
 
-void RenderBearingDiff(HDC hdc, const RECT rc,double brg, DiagrammStruct* psDia )
+void RenderBearingDiff(HDC hdc,double brg, DiagrammStruct* psDia )
 {
+RECT rc	= psDia->rc;
   // Print Bearing difference
   TCHAR BufferValue[LKSIZEBUFFERVALUE];
   TCHAR BufferUnit[LKSIZEBUFFERUNIT];
   TCHAR BufferTitle[LKSIZEBUFFERTITLE];
+  TCHAR szOvtname[80];
+  GetOvertargetName(szOvtname);
 
   bool ret = false;
   // Borrowed from LKDrawLook8000.cpp
@@ -190,22 +240,29 @@ void RenderBearingDiff(HDC hdc, const RECT rc,double brg, DiagrammStruct* psDia 
   }
 
 
+  SIZE tsize;
+  int x = (rc.right + rc.left)/2;
+  int y = rc.top+35;
+
   if (ret) {
-    SIZE tsize;
     SelectObject(hdc, LK8MediumFont);
     GetTextExtentPoint(hdc, BufferValue, _tcslen(BufferValue), &tsize);
+    y = rc.top;
+    ExtTextOut(hdc, x- tsize.cx/2, y, ETO_OPAQUE, NULL, BufferValue, _tcslen(BufferValue), NULL);
 
-    ExtTextOut(hdc, (rc.left + rc.right - tsize.cx)/2, rc.top, ETO_OPAQUE, NULL, BufferValue, _tcslen(BufferValue), NULL);
-
+	y += tsize.cy-5;
+	SelectObject(hdc, LK8PanelUnitFont);
+	GetTextExtentPoint(hdc, szOvtname, _tcslen(szOvtname), &tsize);
+	ExtTextOut(hdc, x-tsize.cx/2, y, ETO_OPAQUE, NULL, szOvtname, _tcslen(szOvtname), NULL);
   }
 }
 
 
 // draw aircraft
-void RenderPlaneSideview(HDC hdc, const RECT rc,double fDist, double fAltitude,double brg, DiagrammStruct* psDia )
+void RenderPlaneSideview(HDC hdc, double fDist, double fAltitude,double brg, DiagrammStruct* psDia )
 {
-
-
+//BOOL bInvCol = true ; //INVERTCOLORS
+RECT rc =	psDia->rc;
   #define NO_AP_PTS 17
   int deg = DEG_TO_INT(AngleLimit360(brg));
   double fCos = COSTABLE[deg];
@@ -296,12 +353,12 @@ void RenderPlaneSideview(HDC hdc, const RECT rc,double fDist, double fAltitude,d
 
   };
 
-  Start.x = CalcDistanceCoordinat(fDist,  rc, psDia);
-  Start.y = CalcHeightCoordinat(fAltitude,  rc, psDia);
+  Start.x = CalcDistanceCoordinat(fDist,  psDia);
+  Start.y = CalcHeightCoordinat(fAltitude, psDia);
   HBRUSH oldBrush;
   HPEN   oldPen;
 /*
-  if(INVERTCOLORS)
+  if(bInvCol)
   {
     oldPen   = (HPEN)SelectObject(hdc, GetStockObject(WHITE_PEN));
     oldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(BLACK_BRUSH));
@@ -361,30 +418,40 @@ void RenderPlaneSideview(HDC hdc, const RECT rc,double fDist, double fAltitude,d
 } //else !asp_heading_task
 
 
-
-
-int CalcHeightCoordinat(double fHeight, const RECT rc, DiagrammStruct* psDia)
+int CalcHeightCoordinatOutbound(double fHeight, DiagrammStruct* psDia)
 {
-  int y0 = rc.bottom-BORDER_Y;
+	RECT rc =	psDia->rc;
+	  int y0 = rc.bottom-BORDER_Y;
 
-//  fMaxAltToday = 3300;
-//  double hmin = max(0.0, alt-2300);
-//  double hmax = max(fMaxAltToday, alt+1000);
-  double hmin = psDia->fYMin;
-  double hmax = psDia->fYMax;
-  if (hmax==hmin) hmax++; // RECOVER DIVISION BY ZERO!
-  double gfh = (fHeight-hmin)/(hmax-hmin);
-  int yPos = (int)(gfh*(rc.top-rc.bottom+BORDER_Y)+y0)-1;
+	//  fMaxAltToday = 3300;
+	//  double hmin = max(0.0, alt-2300);
+	//  double hmax = max(fMaxAltToday, alt+1000);
+	  double hmin = psDia->fYMin;
+	  double hmax = psDia->fYMax;
+	  if (hmax==hmin) hmax++; // RECOVER DIVISION BY ZERO!
+	  double gfh = (fHeight-hmin)/(hmax-hmin);
+	  int yPos = (int)(gfh*(rc.top-rc.bottom)+y0)-1;
+	  return yPos;
+}
+int CalcHeightCoordinat(double fHeight, DiagrammStruct* psDia)
+{
+int yPos;
+RECT rc =	psDia->rc;
+yPos = CalcHeightCoordinatOutbound( fHeight,  psDia);
+	  if(yPos < rc.top )
+		  yPos  = rc.top;
+	  if(yPos > rc.bottom )
+		  yPos  = rc.bottom;
+	  return yPos;
 
-  return yPos;
-//  fHeigh
 }
 
-int CalcDistanceCoordinat(double fDist, const RECT rc,  DiagrammStruct* psDia)
+int CalcDistanceCoordinat(double fDist, DiagrammStruct* psDia)
 {
+RECT rc =	psDia->rc;
 if ( psDia->fXMax == psDia->fXMin) psDia->fXMax++; // RECOVER DIVISION BY ZERO!
-double xscale =   (double) (rc.right - rc.left-BORDER_X)/(psDia->fXMax - psDia->fXMin);
-int	xPos = (int)((fDist- psDia->fXMin)*xscale)+rc.left +BORDER_X;
+double xscale =   (double) (rc.right - rc.left)/(psDia->fXMax - psDia->fXMin);
+int	xPos = (int)((fDist- psDia->fXMin)*xscale)+rc.left ;
   return xPos;
 
 }
@@ -496,3 +563,108 @@ HBRUSH OldBrush = (HBRUSH) SelectObject(hdc, GetStockObject(BLACK_BRUSH));
 
 
 
+GEXTERN bool ActiveMap;
+int MapWindow::AirspaceTopView(HDC hdc, DiagrammStruct* pDia , double fAS_Bearing, double fWP_Bearing)
+{
+//fAS_Bearing+=3.0;
+
+double fOldScale  =  zoom.Scale();
+RECT rct = pDia->rc;
+bool OldAM = ActiveMap;
+ActiveMap = true ;
+
+double fFact = 1.0 ;
+
+	switch(ScreenSize) {
+	//	case ss896x672:	fFact=1.300; break;
+	case ss896x672:	fFact=0.900; break;
+	//	case ss800x480:	fFact=0.975; break;
+	case ss800x480:	fFact=0.735; break;
+	//	case ss640x480:	fFact=1.3; break;
+	case ss640x480:	fFact=0.90; break;
+	//	case ss480x272:	fFact=1.900; break;
+	case ss480x272:	fFact=0.680; break;
+	//	case ss400x240:	fFact=1.250; break;
+	case ss400x240:	fFact=0.4250; break;
+	//	case ss320x240:	fFact=1.295; break;
+		case ss320x240:	fFact=0.875; break;
+
+		case ss480x800:	fFact=1.20; break;
+		case ss480x640:	fFact=1.20; break;
+		case ss272x480:	fFact=1.20; break;
+		case ss240x400:	fFact=1.20; break;
+		case ss240x320:	fFact=1.20; break;
+
+
+		default:	fFact=1.000; break;
+	}
+
+
+
+   PanLatitude  = GPS_INFO.Latitude;
+   PanLongitude = GPS_INFO.Longitude;
+   DisplayAngle = AngleLimit360(fAS_Bearing  +270.0);
+   DisplayAircraftAngle = AngleLimit360(fWP_Bearing);
+
+  int iOldLocator = EnableThermalLocator;
+  EnableThermalLocator =0;
+
+  MapWindow::ChangeDrawRect(rct);       // set new area for terrain and topology
+
+  zoom.ModifyMapScale();
+  zoom.RequestedScale((pDia->fXMax -pDia->fXMin)  * fFact *  (DISTANCEMODIFY)/10.0f);
+
+   POINT Orig           =  { CalcDistanceCoordinat(0.0,   pDia),(rct.bottom-rct.top)/2};
+   POINT Orig_Aircraft= {0,0};
+
+   zoom.ModifyMapScale();
+   zoom.UpdateMapScale();
+
+   CalculateScreenPositions( Orig,  rct, &Orig_Aircraft);
+   CalculateScreenPositionsAirspace();
+
+
+  double sunelevation = 40.0;
+  double sunazimuth=GetAzimuth();
+
+  if (EnableTerrain && DerivedDrawInfo.TerrainValid )
+	DrawTerrain(hdc, rct, sunazimuth, sunelevation);
+
+  if (EnableTopology) {
+	SaturateLabelDeclutter();  // Do not print topology labels
+	RECT rc_red = rct;
+	rc_red.bottom -= 3;
+	DrawTopology  (hdc, rc_red);
+  }
+
+   DrawAirSpace( hdc, rct);
+   //LKDrawTrail(hdc, Orig_Aircraft, rct);
+   DrawAirspaceLabels( hdc,   rct, Orig_Aircraft);
+
+  /****************************************************************************************************
+   * draw vertical line
+   ****************************************************************************************************/
+   POINT line[2];
+   line[0].x = rct.left;
+   line[0].y = Orig_Aircraft.y-2;
+   line[1].x = rct.right;
+   line[1].y = line[0].y;
+
+   DrawAircraft(hdc, Orig_Aircraft);
+   DrawDashLine(hdc,3, line[0], line[1],  Sideview_TextColor, rct);
+
+
+   HPEN hpGreen = (HPEN) CreatePen(PS_SOLID, IBLSCALE(1), RGB_BLACK);
+   HPEN oldPen  = (HPEN) SelectObject(hdc, hpGreen);
+   SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
+   Rectangle(hdc,rct.left-1 , rct.bottom ,rct.right+2, rct.top);
+   SelectObject(hdc, oldPen);
+   DeleteObject(hpGreen);
+
+
+
+   MapWindow::zoom.RequestedScale(fOldScale);
+   EnableThermalLocator = iOldLocator;
+   ActiveMap = OldAM ;
+ return 0;
+}

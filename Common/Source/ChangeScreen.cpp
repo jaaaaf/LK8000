@@ -28,9 +28,6 @@
 #include "DoInits.h"
 
 
-#define CHANGESCREEN 1
-
-#if CHANGESCREEN // Experimental work in progress
 
 //
 // Detect if screen resolution and/or orientation has changed
@@ -241,6 +238,9 @@ void ReinitScreen(void) {
   Reset_Single_DoInits(MDI_COMPASS);
   Reset_Single_DoInits(MDI_LOOKABLEND);
   Reset_Single_DoInits(MDI_MAPWPVECTORS);
+  Reset_Single_DoInits(MDI_MAPASP);
+  Reset_Single_DoInits(MDI_MAPRADAR);
+  Reset_Single_DoInits(MDI_MAPWNDPROC);
 
   #if TESTBENCH
   StartupStore(_T("... ChangeScreen resuming Draw Thread\n"));
@@ -254,4 +254,3 @@ void ReinitScreen(void) {
 }
 
 
-#endif // experimental only

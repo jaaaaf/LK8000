@@ -16,52 +16,58 @@
 #include "DoInits.h"
 
 void BottomSounds();
+extern bool IsMultiMap();
+extern void MultiMapSound();
 
+long VKtime=0;
 
 // vkmode 0=normal 1=gesture up 2=gesture down
 // however we consider a down as up, and viceversa
 int ProcessVirtualKey(int X, int Y, long keytime, short vkmode) {
 
 #define VKTIMELONG 1500
-
 	short yup, ydown;
-	static short sizeup;
 	short i, j;
 	short numpages=0;
 
-	static short s_sizeright=0, s_xright=0, s_xleft=0, s_unxright=0, s_unxleft=0;
-	static short s_bottomY=0;
+	static short s_xright=0, s_xleft=0;
+
+	// future common globals
+	static short X_Right=0, X_Left=0;
+	static short Y_BottomBar;
+
+
 	short shortpress_yup, shortpress_ydown;
 	short longpress_yup, longpress_ydown;
+
+	static short s_bottomY=0;
 	static short oldMapSpaceMode=0;
 
 	bool dontdrawthemap=(DONTDRAWTHEMAP);
+	VKtime=keytime;
 
 	#ifdef DEBUG_PROCVK
 	TCHAR buf[100];
-	wsprintf(buf,_T("R=%d,%d,%d,%d, X=%d Y=%d kt=%ld"),MapWindow::MapRect.left, MapWindow::MapRect.top, 
-	MapWindow::MapRect.right, MapWindow::MapRect.bottom,X,Y,keytime);
+	wsprintf(buf,_T("R=%d,%d,%d,%d, X=%d Y=%d kt=%ld"),0, 0, 
+	ScreenSizeX, ScreenSizeY,X,Y,keytime);
 	DoStatusMessage(buf);
 	#endif
 
 
 	if (DoInit[MDI_PROCESSVIRTUALKEY]) {
 
-		sizeup=MapWindow::MapRect.bottom-MapWindow::MapRect.top;
-
-		// bottomline does not exist when infoboxes are painted, so we can make it static
-		s_sizeright=MapWindow::MapRect.right-MapWindow::MapRect.left;
+		Y_BottomBar=ScreenSizeY-BottomSize;
 
 		// calculate left and right starting from center
-		s_xleft=(s_sizeright/2)-(s_sizeright/6);
-		s_xright=(s_sizeright/2)+(s_sizeright/6);
+		s_xleft=(ScreenSizeX/2)-(ScreenSizeX/6);
+		s_xright=(ScreenSizeX/2)+(ScreenSizeX/6);
 
 		// used by ungesture fast click on infopages
-		s_unxleft=(s_sizeright/2)-(s_sizeright/3);
-		s_unxright=(s_sizeright/2)+(s_sizeright/3);
+		X_Left=(ScreenSizeX/2)-(ScreenSizeX/3);
+		X_Right=(ScreenSizeX/2)+(ScreenSizeX/3);
 
 		// same for bottom navboxes: they do not exist in infobox mode
-		s_bottomY=(MapWindow::MapRect.bottom-MapWindow::MapRect.top)-BottomSize-NIBLSCALE(2); // bugfix era 15, troppo 090731
+		s_bottomY=Y_BottomBar-NIBLSCALE(2);
 
 		DoInit[MDI_PROCESSVIRTUALKEY]=false;
 	}
@@ -69,10 +75,10 @@ int ProcessVirtualKey(int X, int Y, long keytime, short vkmode) {
 	// 120602 fix
 	// TopSize is dynamically assigned by DrawNearest,Drawcommon, DrawXX etc. so we cannot make static yups
 	//
-	longpress_yup=(short)((sizeup-BottomSize-TopSize)/3.7)+MapWindow::MapRect.top+TopSize;
-	longpress_ydown=(short)(MapWindow::MapRect.bottom-BottomSize-((sizeup-BottomSize)/3.7));
-	shortpress_yup=(short)((sizeup-BottomSize-TopSize)/2.7)+MapWindow::MapRect.top+TopSize;
-	shortpress_ydown=(short)(MapWindow::MapRect.bottom-BottomSize-((sizeup-BottomSize)/2.7));
+	longpress_yup=(short)((Y_BottomBar-TopSize)/3.7)+TopSize;
+	longpress_ydown=(short)(Y_BottomBar-(Y_BottomBar/3.7));
+	shortpress_yup=(short)((Y_BottomBar-TopSize)/2.7)+TopSize;
+	shortpress_ydown=(short)(Y_BottomBar-(Y_BottomBar/2.7));
 	
 	// do not consider navboxes, they are processed separately
 	// These are coordinates for up down center VKs
@@ -91,8 +97,8 @@ int ProcessVirtualKey(int X, int Y, long keytime, short vkmode) {
 		}
 	} else {
 		// This could happen only in Ibox mode. We should never fall here.
-		yup=(short)((MapWindow::MapRect.bottom-MapWindow::MapRect.top)/2.7)+MapWindow::MapRect.top;
-		ydown=(short)(MapWindow::MapRect.bottom-((MapWindow::MapRect.bottom-MapWindow::MapRect.top)/2.7));
+		yup=(short)(ScreenSizeY/2.7);
+		ydown=(short)(ScreenSizeY-(ScreenSizeY/2.7));
 		#if TESTBENCH
 		StartupStore(_T("...... DrawBottom FALSE in virtual key processing!\n"));
 		#endif
@@ -117,7 +123,7 @@ int ProcessVirtualKey(int X, int Y, long keytime, short vkmode) {
 					if (CustomKeyHandler(CKI_BOTTOMRIGHT)) return 0;
 				}
 				#ifdef DEBUG_PROCVK
-				wsprintf(buf,_T("RIGHT in limit=%d"),sizeup-BottomSize-NIBLSCALE(20));
+				wsprintf(buf,_T("RIGHT in limit=%d"),Y_BottomBar-NIBLSCALE(20));
 				DoStatusMessage(buf);
 				#endif
 				BottomBarChange(true); // advance
@@ -132,7 +138,7 @@ int ProcessVirtualKey(int X, int Y, long keytime, short vkmode) {
 				}
 
 				#ifdef DEBUG_PROCVK
-				wsprintf(buf,_T("LEFT in limit=%d"),sizeup-BottomSize-NIBLSCALE(20));
+				wsprintf(buf,_T("LEFT in limit=%d"),Y_BottomBar-NIBLSCALE(20));
 				DoStatusMessage(buf);
 				#endif
 				BottomBarChange(false); // backwards
@@ -141,7 +147,7 @@ int ProcessVirtualKey(int X, int Y, long keytime, short vkmode) {
 				return 0;
 			}
 			#ifdef DEBUG_PROCVK
-			wsprintf(buf,_T("CENTER in limit=%d"),sizeup-BottomSize-NIBLSCALE(20));
+			wsprintf(buf,_T("CENTER in limit=%d"),Y_BottomBar-NIBLSCALE(20));
 			DoStatusMessage(buf);
 			#endif
 
@@ -368,6 +374,11 @@ shortcut_gesture:
 		switch(vkmode) {
 			// SCROLL DOWN
 			case LKGESTURE_DOWN:
+				if (dontdrawthemap && IsMultiMap()) {
+					LKevent=LKEVENT_PAGEDOWN;
+					MapWindow::RefreshMap();
+					return 0;
+				}
 				// careful, selectedpage starts from 0
 				if (++SelectedPage[MapSpaceMode] >=numpages) {
 					#ifndef DISABLEAUDIO
@@ -384,6 +395,11 @@ shortcut_gesture:
 				return 0;
 			// SCROLL UP
 			case LKGESTURE_UP:
+				if (dontdrawthemap && IsMultiMap()) {
+					LKevent=LKEVENT_PAGEUP;
+					MapWindow::RefreshMap();
+					return 0;
+				}
 				if (--SelectedPage[MapSpaceMode] <0) {
 					#ifndef DISABLEAUDIO
 					if (EnableSoundModes) PlayResource(TEXT("IDR_WAV_CLICK"));
@@ -409,10 +425,17 @@ gesture_right:
 				MapWindow::RefreshMap();
 				#ifndef DISABLEAUDIO
 				if (EnableSoundModes) {
-					if (CURTYPE == 0)
-						PlayResource(TEXT("IDR_WAV_HIGHCLICK"));
-					else
-						PlayResource(TEXT("IDR_WAV_CLICK"));
+					// Notice: MultiMap has its own sounds. We come here when switching pages, but with
+					// an exception: from moving map we generate currently a direct NextModeType from
+					// MapWndProc, and thus we dont get ProcessVirtualKeys for that single case.	
+					// We should not be playing a CLICK sound while we are playing the MM tone, or
+					// it wont come up !
+					if (ModeIndex!=LKMODE_MAP) {
+						if (CURTYPE == 0)
+							PlayResource(TEXT("IDR_WAV_HIGHCLICK"));
+						else
+							PlayResource(TEXT("IDR_WAV_CLICK"));
+					}
 				}
 				#endif
 				return 0;
@@ -425,10 +448,12 @@ gesture_left:
 				MapWindow::RefreshMap();
 				#ifndef DISABLEAUDIO
 				if (EnableSoundModes) {
-					if (CURTYPE == 0)
-						PlayResource(TEXT("IDR_WAV_HIGHCLICK"));
-					else
-						PlayResource(TEXT("IDR_WAV_CLICK"));
+					if (ModeIndex!=LKMODE_MAP) {
+						if (CURTYPE == 0)
+							PlayResource(TEXT("IDR_WAV_HIGHCLICK"));
+						else
+							PlayResource(TEXT("IDR_WAV_CLICK"));
+					}
 				}
 				#endif
 				return 0;
@@ -441,17 +466,27 @@ gesture_left:
 		return 0;
 	}
 
+	if (dontdrawthemap && IsMultiMap()) {
+		//if (keytime>=AIRSPACECLICK) {
+		if (keytime>=(VKSHORTCLICK*4)) {
+			LKevent=LKEVENT_LONGCLICK;
+			MapWindow::RefreshMap();
+			return 0;
+		}
+	}
+
 	// UNGESTURES: 
 	// No need to use gestures if clicking on right or left center border screen
 	// This will dramatically speed up the user interface in turbulence
 	if (dontdrawthemap) {
 		if (Y>longpress_yup && Y<longpress_ydown) {
 			if (UseUngestures || !ISPARAGLIDER) {
-				if (X<=s_unxleft)  goto gesture_left;
-				if (X>=s_unxright) goto gesture_right;
+				if (X<=X_Left)  goto gesture_left;
+				if (X>=X_Right) goto gesture_right;
 			}
 		}
 	}
+
 
 	if (Y<yup) {
 		// we are processing up/down in mapspacemode i.e. browsing waypoints on the page
@@ -463,7 +498,6 @@ gesture_left:
 			#ifndef DISABLEAUDIO
 	        	if (EnableSoundModes) PlayResource(TEXT("IDR_WAV_CLICK"));
 			#endif
-			//if (--SelectedRaw[MapSpaceMode] <0) SelectedRaw[MapSpaceMode]=Numraws-1;
 			LKevent=LKEVENT_UP;
 			MapWindow::RefreshMap();
 			// DoStatusMessage(_T("DBG-032-B event up used here"));
@@ -483,7 +517,6 @@ gesture_left:
 			#ifndef DISABLEAUDIO
 	        	if (EnableSoundModes) PlayResource(TEXT("IDR_WAV_CLICK"));
 			#endif
-			//if (++SelectedRaw[MapSpaceMode] >=Numraws) SelectedRaw[MapSpaceMode]=0;
 			LKevent=LKEVENT_DOWN;
 			MapWindow::RefreshMap();
 			return 0;
@@ -518,7 +551,7 @@ gesture_left:
 		// return 27; virtual ESC 
 	} else {
 		// If in mapspacemode process ENTER 
-		if ( (keytime>=(VKSHORTCLICK*2)) && dontdrawthemap) {
+		if ( (keytime>=(VKSHORTCLICK*2)) && dontdrawthemap && !IsMultiMap()) {
 			#ifndef DISABLEAUDIO
 			if (EnableSoundModes) LKSound(_T("LK_BELL.WAV"));
 			#endif
@@ -534,6 +567,12 @@ gesture_left:
 		}
 */
 
+		//
+		// Here we are when short clicking in the center area, not an up and not a down.. a center.
+		// We do nothing.
+		//
+
+
 		if (SIMMODE) {
 			if ( MapWindow::mode.AnyPan() && ISPARAGLIDER) return 99; // 091221 return impossible value
 			else return 0;
@@ -547,4 +586,10 @@ gesture_left:
 
 
 
+bool IsMultiMap() {
+  if (MapSpaceMode==MSM_MAPASP || MapSpaceMode==MSM_MAPRADAR || MapSpaceMode==MSM_MAPTEST)
+	return true;
+  else
+	return false;
+}
 

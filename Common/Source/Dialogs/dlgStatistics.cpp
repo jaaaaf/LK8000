@@ -40,7 +40,7 @@ static HPEN penThinSignal = NULL;
 
 AirSpaceSideViewSTRUCT Sideview_pHandeled[MAX_NO_SIDE_AS];
 int   Sideview_iNoHandeldSpaces=0;
-int   Sideview_asp_heading_task = 0;
+extern int   Sideview_asp_heading_task ;
 long  iSonarLevel = 0;
 
 #if USESONAR
@@ -50,24 +50,8 @@ bool  Sonar_IsEnabled = false;
 #endif
 TCHAR Sideview_szNearAS[80];
 
-COLORREF  Sideview_TextColor = RGB_WHITE;
+extern COLORREF  Sideview_TextColor;
 
-
-AirSpaceSonarLevelStruct sSonarLevel[10] = {
-    /* horizontal sonar levels */
-    /* Dist , Delay *0.5s, V/H,      soundfile */
-    {  150,     3,         true, TEXT("LK_SONAR_H1.WAV")},
-    {  330,     3,         true, TEXT("LK_SONAR_H2.WAV")},
-    {  500,     5,         true, TEXT("LK_SONAR_H3.WAV")},
-    {  650,     5,         true, TEXT("LK_SONAR_H4.WAV")},
-    {  850,     7,         true, TEXT("LK_SONAR_H5.WAV")},
-    /* vertical sonar levels */
-    {  30 ,     3,         false, TEXT("LK_SONAR_H1.WAV")},
-    {  50 ,     3,         false, TEXT("LK_SONAR_H2.WAV")},
-    {  70,      5,         false, TEXT("LK_SONAR_H3.WAV")},
-    {  90,      5,         false, TEXT("LK_SONAR_H4.WAV")},
-    {  110,     7,         false, TEXT("LK_SONAR_H5.WAV")}
-   };
 
 void Statistics::ResetScale() {
   unscaled_y = true;  
@@ -716,8 +700,10 @@ void Statistics::RenderBarograph(HDC hdc, const RECT rc)
 
 #if  (WINDOWSPC > 0)
   if(INVERTCOLORS)
-	RenderSky( hdc,   rc, SKY_HORIZON_COL , SKY_SPACE_COL, GC_NO_COLOR_STEPS );
+#else
+  if(ISCAR && INVERTCOLORS)
 #endif
+	RenderSky( hdc,   rc, SKY_HORIZON_COL , SKY_SPACE_COL, GC_NO_COLOR_STEPS );
 
   for(int j=1;j<MAXTASKPOINTS;j++) {
     if (ValidTaskPoint(j) && (flightstats.LegStartTime[j]>=0)) {
@@ -1592,7 +1578,7 @@ static void OnAnalysisPaint(WindowControl * Sender, HDC hDC){
     UnlockTaskData();
     break;
 
-
+#ifdef DDDDD
   case ANALYSIS_PAGE_AIRSPACE:
 #if USESONAR
     if(Sideview_asp_heading_task !=2)
@@ -1607,9 +1593,9 @@ static void OnAnalysisPaint(WindowControl * Sender, HDC hDC){
 #else
       SetCalcCaption(gettext(TEXT("_@M888_"))); // Warnings
 #endif
-    Statistics::RenderAirspace(hDC, rcgfx);
+      MapWindow::RenderAirspace(hDC, rcgfx);
     break;
-
+#endif
 
   case ANALYSIS_PAGE_TASK_SPEED:
     SetCalcCaption(gettext(TEXT("_@M886_"))); // Task calc
@@ -2133,8 +2119,8 @@ static void OnCalcClicked(WindowControl * Sender,
 
 static void OnAspBearClicked(WindowControl * Sender){
   (void)Sender;
-  Sideview_asp_heading_task++;
-  Sideview_asp_heading_task %=3;
+//  Sideview_asp_heading_task++;
+//  Sideview_asp_heading_task %=3;
     Update();
 }
 
@@ -2148,7 +2134,7 @@ static CallBackTableEntry_t CallBackTable[]={
   DeclareCallBackEntry(NULL)
 };
 
-
+#ifdef RRRRR
 static int OnTimerNotify(WindowControl *Sender)
 {
   static short i=0;
@@ -2174,7 +2160,7 @@ static unsigned long lSonarCnt = 0;
   Update();
   return 0;
 }
-
+#endif
 
 
 
@@ -2351,7 +2337,7 @@ if (entered == true) /* prevent re entrance */
     wGrid->SetWidth( wf->GetWidth() - wGrid->GetLeft()-6);
   }
 
-  wf->SetTimerNotify(OnTimerNotify);
+//  wf->SetTimerNotify(OnTimerNotify);
 
   Update();
 

@@ -41,6 +41,10 @@
   extern void Globals_Init(void);
 #endif
 
+#ifdef GTL2
+GEXTERN pointObj GlideFootPrint2[NUMTERRAINSWEEPS+1];
+#endif
+
 GEXTERN bool MenuActive GEXTFALSE;
 GEXTERN HANDLE dataTriggerEvent;
 
@@ -887,6 +891,12 @@ GEXTERN bool LKSW_ForceFreeFlightRestart GEXTFALSE;
 
 // Reset Odometer, by Calc thread
 GEXTERN bool LKSW_ResetOdometer GEXTFALSE;
+
+// Force landing if we are stationary, or below 3kmh, otherwise ignore
+GEXTERN bool LKSW_ForceLanding GEXTFALSE;
+
+// Close and reopen TerrainRenderer, to quickly use a new screen resolution
+GEXTERN bool LKSW_ResetTerrainRenderer GEXTFALSE;
 
 #endif
 

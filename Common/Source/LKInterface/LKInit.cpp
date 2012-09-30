@@ -80,8 +80,15 @@ void UpdateConfBB(void) {
 void UpdateConfIP(void) {
 
   // MAP MODE always available
-  ConfIP[0][0]=true; 
-  ConfIP[0][1]=true; 
+  ConfIP[0][0]=true; 	// welcome
+  ConfIP[0][1]=true; 	// moving map
+  ConfIP[0][2]=true; 	// multimap asp
+  ConfIP[0][3]=true; 	// multimap radar
+#if TESTBENCH
+  ConfIP[0][4]=true; 	// multimap test page
+#else
+  ConfIP[0][4]=false; 	// multimap test page
+#endif
   ConfMP[0]=true; // map mode
 
   // LKMODE_INFOMODE is 1
@@ -107,7 +114,6 @@ void UpdateConfIP(void) {
   ConfIP[4][0]=true;
   ConfIP[4][1]=true;
   ConfIP[4][2]=true;
-  ConfIP[4][3]=true; // RADAR
   ConfMP[4]=true; // traffic mode
 
   // Check if we have INFOMODE
@@ -198,6 +204,9 @@ void InitModeTable() {
 	// this table is for submenus, order is not important
 	ModeTable[LKMODE_MAP][MP_WELCOME]	=	MSM_WELCOME;
 	ModeTable[LKMODE_MAP][MP_MOVING]	=	MSM_MAP;
+	ModeTable[LKMODE_MAP][MP_MAPASP]	=	MSM_MAPASP;
+	ModeTable[LKMODE_MAP][MP_RADAR]		=	MSM_MAPRADAR;
+	ModeTable[LKMODE_MAP][MP_TEST]		=	MSM_MAPTEST;
 
 	ModeTable[LKMODE_WP][WP_AIRPORTS]	=	MSM_AIRPORTS;
 	ModeTable[LKMODE_WP][WP_LANDABLE]	=	MSM_LANDABLE;
@@ -218,7 +227,6 @@ void InitModeTable() {
 	ModeTable[LKMODE_TRF][TF_LIST]		=	MSM_TRAFFIC;
 	ModeTable[LKMODE_TRF][IM_TRF]		=	MSM_INFO_TRF;
 	ModeTable[LKMODE_TRF][IM_TARGET]	=	MSM_INFO_TARGET;
-	ModeTable[LKMODE_TRF][IM_RADAR]		=	MSM_RADAR;
 
 	// startup mode
 	ModeIndex=LKMODE_MAP;

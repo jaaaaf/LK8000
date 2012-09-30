@@ -500,3 +500,22 @@ void MapWindow::FreeSlot(){
 
 #endif
 
+//
+// Called by Thread_Draw, for init
+// Called by RenderMapWindowBg at runtime
+//
+void MapWindow::ResetLabelDeclutter(void) {
+  nLabelBlocks = 0;
+  #if TOPOFASTLABEL
+  for (short nvi=0; nvi<SCREENVSLOTS; nvi++) nVLabelBlocks[nvi]=0;
+  #endif
+}
+
+
+//
+// This will force temporarily no labels to be printed, by saturating the declutter.
+// A dirty trick.
+//
+void MapWindow::SaturateLabelDeclutter(void) {
+  for (short nvi=0; nvi<SCREENVSLOTS; nvi++) nVLabelBlocks[nvi]=MAXVLABELBLOCKS;
+}

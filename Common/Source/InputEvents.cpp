@@ -27,7 +27,7 @@
 #include "Modeltype.h"
 #endif
 #include "utils/stl_utils.h"
-
+#include "RasterTerrain.h"
 
 // Sensible maximums 
 #define MAX_MODE 100
@@ -940,10 +940,9 @@ void InputEvents::eventMarkLocation(const TCHAR *misc) {
   LockFlightData();
 
   if (_tcscmp(misc, TEXT("pan")) == 0) {
-	// the altitude for the virtual waypoint is the same we have now, so we can see how many meters we need to glide there.
-	// Alternative, use terrain altitude in the new pan location, with:
-	// RasterTerrain::GetTerrainHeight(GetPanLatitude(), GetPanLongitude())
-	MarkLocation(MapWindow::GetPanLongitude(), MapWindow::GetPanLatitude(), CALCULATED_INFO.NavAltitude );
+	short th= RasterTerrain::GetTerrainHeight(MapWindow::GetPanLatitude(), MapWindow::GetPanLongitude());
+	if (th==TERRAIN_INVALID) th=0;
+	MarkLocation(MapWindow::GetPanLongitude(), MapWindow::GetPanLatitude(), th );
   } else {
 	#if USETOPOMARKS
 	MarkLocation(GPS_INFO.Longitude, GPS_INFO.Latitude);
@@ -1175,10 +1174,12 @@ void InputEvents::eventZoom(const TCHAR* misc) {
 //	on	Turn pan on
 //	off	Turn pan off
 //      supertoggle Toggles pan and fullscreen
-//	up	Pan up
-//	down	Pan down
-//	left	Pan left
-//	right	Pan right
+//	up	zoomin		Zoom in
+//	down	zoomout		Zoom out
+//	left	moveleft	Pan left
+//	right	moveright	Pan right
+//		moveup		Pan up
+//		movedown	Pan down
 void InputEvents::eventPan(const TCHAR *misc) {
   if (_tcscmp(misc, TEXT("toggle")) == 0)
     MapWindow::Event_Pan(-1);
@@ -1189,14 +1190,18 @@ void InputEvents::eventPan(const TCHAR *misc) {
   else if (_tcscmp(misc, TEXT("off")) == 0) 
     MapWindow::Event_Pan(0);
 
- else if (_tcscmp(misc, TEXT("up")) == 0)
-			MapWindow::zoom.EventScaleZoom(1);
-else if (_tcscmp(misc, TEXT("down")) == 0)
-			MapWindow::zoom.EventScaleZoom(-1); // fixed v58
-  else if (_tcscmp(misc, TEXT("left")) == 0)
+  else if (_tcscmp(misc, TEXT("up")) == 0 || _tcscmp(misc, TEXT("zoomin")) == 0)
+    MapWindow::zoom.EventScaleZoom(1);
+  else if (_tcscmp(misc, TEXT("down")) == 0 || _tcscmp(misc, TEXT("zoomout")) == 0)
+    MapWindow::zoom.EventScaleZoom(-1); // fixed v58
+  else if (_tcscmp(misc, TEXT("left")) == 0 || _tcscmp(misc, TEXT("moveleft")) == 0)
     MapWindow::Event_PanCursor(1,0);
-  else if (_tcscmp(misc, TEXT("right")) == 0)
+  else if (_tcscmp(misc, TEXT("right")) == 0 || _tcscmp(misc, TEXT("moveright")) == 0)
     MapWindow::Event_PanCursor(-1,0);
+  else if (_tcscmp(misc, TEXT("moveup")) == 0)
+    MapWindow::Event_PanCursor(0,1);
+  else if (_tcscmp(misc, TEXT("movedown")) == 0)
+    MapWindow::Event_PanCursor(0,-1);
   else if (_tcscmp(misc, TEXT("show")) == 0) {
     if (MapWindow::mode.AnyPan())
       DoStatusMessage(gettext(TEXT("_@M858_"))); // Pan mode ON

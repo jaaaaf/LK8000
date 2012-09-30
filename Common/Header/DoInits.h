@@ -47,7 +47,7 @@
 	MDI_DRAWTHERMALHISTORY,		// screen change, font change
 	MDI_DRAWTRAFFIC,		// screen change, font change
 	MDI_DRAWVARIO,			// screen change
-	MDI_MAPWNDPROC,			// unused
+	MDI_MAPWNDPROC,			// screen change
 	MDI_GETOVERTARGETHEADER,	// language change
 	MDI_PROCESSVIRTUALKEY,		// screen change
 	MDI_ONPAINTLISTITEM,		// screen change, font change
@@ -60,6 +60,9 @@
 	MDI_MAPWPVECTORS,		// screen change
 	MDI_READLANGUAGEFILE,		// full restart
 	MDI_FLARMRADAR,			// screen change
+	MDI_MAPASP,			// screen change?
+	MDI_MAPRADAR,			// screen change?
+	MDI_MAPTEST,			// testing purposes
 	MDI_LAST_DOINIT,		
  } MDI_t;
 

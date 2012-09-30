@@ -33,7 +33,6 @@ Things to be fixed in LK languages files/tokens:
 - Changed HELP 199 FLarm on Map
 - New H1213 pg autozoom threshold
 - New help 916 -> 924
-
   NEW MSG TOKENS
   --------------
 
@@ -209,3 +208,20 @@ _@M2229_ "Reset\nOdomet"
 # Arm TPs for AAT tasks
 _@M1798_ "Arm TPs"
 Changed HELP 200 and 507
+
+- Changed help 194.  Only significant change was addition of description of new [...+NextWP] options.  Other changes were too minor to require translation.
+
+ATTENTION:
+- _@M94_ & _@M99_ ..  new [...+NextWP] glide terrain line options, update them!
+
+_@M2230_ "Force\nLanded"
+_@M1799_ "Stop moving!"
+
+-_@M1290_ "Showing towards heading"
++_@M1290_ "Heading"
+
+_@M2231_ "no trace"
++_@M2232_ "climb trace"
++_@M2233_ "climb/sink trace"
+
+
