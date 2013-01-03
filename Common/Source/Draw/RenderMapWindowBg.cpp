@@ -140,7 +140,7 @@ QuickRedraw:
 		if (IsMultimapOverlaysGauges()) {
 			if (LKVarioBar) LKDrawVario(hdc,rc);
 
-			if ((mode.Is(Mode::MODE_CIRCLING)) )
+//			if ((mode.Is(Mode::MODE_CIRCLING)) )
 				if (ThermalBar) DrawThermalBand(hdcDrawWindow, rc);
 
 			DrawFinalGlide(hdcDrawWindow,rc);
@@ -425,7 +425,7 @@ _skip_2:
 
   if (NOTANYPAN) {
     // REMINDER TODO let it be configurable for not circling also, as before
-    if ((mode.Is(Mode::MODE_CIRCLING)) )
+//    if ((mode.Is(Mode::MODE_CIRCLING)) )
       if (ThermalBar) DrawThermalBand(hdcDrawWindow, rc); // 091122
   
     if (IsMultimapOverlaysText()) DrawLook8000(hdc,rc); 

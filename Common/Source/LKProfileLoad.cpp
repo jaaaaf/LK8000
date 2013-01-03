@@ -594,6 +594,12 @@ void LKParseProfileString(TCHAR *sname, TCHAR *svalue) {
 
   PREAD(sname, svalue, szRegistryUseWindRose, &UseWindRose);
   if (matchedstring) return;
+  
+  PREAD(sname, svalue, szRegistryFlags_DrawFAI,&Flags_DrawFAI);
+  if (matchedstring) return;
+  PREAD(sname, svalue, szRegistryFlags_DrawTask,&Flags_DrawTask);
+  if (matchedstring) return;
+
 
   PREAD(sname,svalue,szRegistryMultiTerr0,&Multimap_Flags_Terrain[MP_MOVING]);
   if (matchedstring) return;

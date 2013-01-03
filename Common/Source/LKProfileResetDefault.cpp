@@ -434,6 +434,9 @@ void LKProfileResetDefault(void) {
    UseWindRose=false;	// use wind rose (ex: NNE) for wind direction, instead of degrees
                         // only Changed by custom Key
 
+  Flags_DrawFAI = true;
+  Flags_DrawFAI = true;
+   
   // ######### ADD NEW ITEMS ABOVE THIS LINE  #########
 
 }

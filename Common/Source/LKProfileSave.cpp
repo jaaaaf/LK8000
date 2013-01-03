@@ -310,6 +310,9 @@ void LKProfileSave(const TCHAR *szFile)
 
   rprintf(szRegistryUseWindRose,UseWindRose);
 
+  rprintf(szRegistryFlags_DrawFAI,Flags_DrawFAI);
+  rprintf(szRegistryFlags_DrawTask,Flags_DrawTask);
+
   //
   // Multimaps added 121003
   //

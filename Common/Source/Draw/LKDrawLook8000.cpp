@@ -512,10 +512,10 @@ nextinit:
   } else {
 	index = GetOvertargetIndex();
   }
-		if (!MapWindow::mode.Is(MapWindow::Mode::MODE_CIRCLING)) {
+/*		if (!MapWindow::mode.Is(MapWindow::Mode::MODE_CIRCLING)) {
 			rcx=rc.left+leftmargin+NIBLSCALE(1);
 			rcy=rc.top+NIBLSCALE(1);
-		} else {
+		} else */{
 			if (ThermalBar) 
 				rcx=rc.left+leftmargin+NIBLSCALE(40);
 			else
