@@ -113,6 +113,20 @@ KoboMountData()
 #endif
 }
 
+void koboToggleUSBStorage()
+{
+    static bool toggleUSB = false;
+    
+    if (!toggleUSB) {
+        KoboExportUSBStorage();
+        toggleUSB = true;
+    }
+    else {
+        KoboUnexportUSBStorage();
+        toggleUSB = false;
+    }
+}
+
 bool
 KoboExportUSBStorage()
 {

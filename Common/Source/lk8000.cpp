@@ -351,7 +351,7 @@ int main(int argc, char *argv[]) {
   OpenGeoid();
 
   PreloadInitialisation(false); // calls dlgStartup
-  if(RUN_MODE == RUN_EXIT || RUN_MODE == RUN_SHUTDOWN) {
+  if(RUN_MODE == RUN_EXIT || RUN_MODE == RUN_SHUTDOWN || RUN_MODE == RUN_KOBO) {
 	realexitforced=true;
 	goto _Shutdown;
   }
@@ -631,11 +631,15 @@ _Shutdown:
   _CrtCheckMemory();
   //  _CrtDumpMemoryLeaks(); generate False positive, use _CrtSetDbgFlag(_CRTDBG_LEAK_CHECK_DF|_CRTDBG_ALLOC_MEM_DF); instead
   #endif
-  #endif
+#endif
 
-#if (defined(KOBO) && defined(NDEBUG))
-#warning "Temporary : remove when we have KoboMenu"  
-  KoboExecNickel();
+#if (defined(KOBO))
+  // TODO : unexport usb only if exported before  
+  KoboUnexportUSBStorage();
+    if (RUN_MODE == RUN_KOBO)
+        KoboExecNickel();
+    else
+        KoboPowerOff();
 #endif  
   
   if (realexitforced) return 222;

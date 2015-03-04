@@ -6,7 +6,7 @@
     <WndButton Name="cmdDUALPROFILE" Caption="_@M516_" X="2" Y="230" Width="115"  Height="40" Font="2" Tag="3" />
     <WndButton Name="cmdEXIT" Caption="_@M248_" X="123" Y="230" Width="115"  Height="40" Font="2" Tag="3" />
     <WndButton Name="cmdSIM" Caption="_@M569_" X="123" Y="275" Width="115"  Height="40" Font="2" Tag="3" />
-    <WndButton Name="cmdKOBO" Caption="_@M2260_" X="2" Y="320" Width="115"  Height="40" Font="2" Tag="3" />
-    <WndButton Name="cmdNETWORK" Caption="_@M2261_" X="123" Y="320" Width="115"  Height="40" Font="2" Tag="3" />
+    <WndButton Name="cmdKOBO" Caption="_@M2186_" X="2" Y="320" Width="60"  Height="40" Font="2" Tag="3" />
+    <WndButton Name="cmdSYSTEM" Caption="_@M2187_" X="123" Y="320" Width="60"  Height="40" Font="2" Tag="3" />
   </WndForm>
 </PMML>

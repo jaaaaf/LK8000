@@ -7,6 +7,7 @@
 
 #include "options.h"
 #include "Enums.h"
+#include "WindowControls.h"
 class CAirspace;
 
 MsgReturn_t MessageBoxX(LPCTSTR lpText, LPCTSTR lpCaption, MsgType_t uType, bool wfullscreen=false);
@@ -46,6 +47,7 @@ typedef	struct{
 
 } ListElement;
 
+typedef void (*PtrCallback)(WndButton*);
 
 bool dlgAirspaceWarningShowDlg(bool force);
 // int dlgWayPointSelect(void);
@@ -67,6 +69,9 @@ void dlgVegaDemoShowModal(void);
 bool dlgConfigurationVarioShowModal(void);
 void dlgLoggerReplayShowModal(void);
 short dlgStartupShowModal(void);
+void dlgShow5Item(const TCHAR *item1, const TCHAR *item2, const TCHAR *item3, const TCHAR *item4, const TCHAR *item5,
+        PtrCallback ptrCallback[5],
+        int *PROFWIDTH, int *PROFACCEPTWIDTH, int *PROFHEIGHT, int *PROFSEPARATOR);
 void dlgTaskCalculatorShowModal(void);
 void dlgWindSettingsShowModal(void);
 void dlgStartTaskShowModal(bool *validStart, double Time, double Speed, double Altitude);

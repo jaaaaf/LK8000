@@ -44,8 +44,10 @@
 // Disable externally generated sounds
 #if !defined(KOBO)
     // audio can be also implemented for external device
-    #define DISABLEEXTAUDIO
+    //#define DISABLEEXTAUDIO
 #endif
+// TODO : put this in KOBO
+#define NETWORKCONF
 
 #ifdef __linux__
  // temporary disable, need to be port...
@@ -100,7 +102,7 @@
 // It is introducing a TIMER in event processed inside MapWndProc.
 //#define LONGCLICK_FEEDBACK
 
-// #define SAVESCREEN	1	// Save screen geometry to profile and load it on startup
+ #define SAVESCREEN	1	// Save screen geometry to profile and load it on startup
 
 
 

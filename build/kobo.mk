@@ -9,6 +9,13 @@ FONTS_NAMES =	DejaVuSansCondensed \
 	
 FONTS_FILES = $(patsubst %,$(FONTS_DIR)/%.ttf,$(FONTS_NAMES))
 
+KOBO_MENU_SOURCES := \
+	$(SRC)/kobo/KoboMenu.cpp 
+
+
+$(KOBO_MENU_BIN) : KOBO_MENU_SOURCES
+
+
 SYSROOT = $(shell $(CC) -print-sysroot)
 
 # install our version of the system libraries in /opt/LK8000/lib; this

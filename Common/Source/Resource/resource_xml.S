@@ -106,6 +106,8 @@
     binfile IDR_XML_COMBOPICKER "../../Data/Dialogs/dlgComboPicker.xml"
     binfile IDR_XML_PROFILES "../../Data/Dialogs/dlgProfiles.xml"
     binfile IDR_XML_AIRSPACEWARNINGPARAMS "../../Data/Dialogs/dlgAirspaceWarningParams.xml"
+    binfile IDR_XML_NETWORK_L "../../Data/Dialogs/dlgNetwork_L.xml"
+    binfile IDR_XML_NETWORK_P "../../Data/Dialogs/dlgNetwork_P.xml"
 
     binfile IDR_XML_CONFIGURATION_P "../../Data/Dialogs/dlgConfiguration_P.xml"
     binfile IDR_XML_CONFIGURATION_L "../../Data/Dialogs/dlgConfiguration_L.xml"

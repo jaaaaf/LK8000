@@ -17,6 +17,7 @@
 #include "OS/Memory.h"
 #include "Sound/Sound.h"
 #include "ScreenGeometry.h"
+#include "Kobo/System.hpp"
 
 extern void Shutdown(void);
 extern void LoadSplash(LKSurface& Surface,const TCHAR *splashfile);
@@ -195,7 +196,24 @@ static void OnSplashPaint(WindowControl * Sender, LKSurface& Surface){
 		RawWrite(Surface,mes,5,2, RGB_ICEWHITE, WTMODE_OUTLINED);
 		_stprintf(mes,_T("%s"),gettext(_T("_@M1759_")));	// SELECTED IN SYSTEM
 		RawWrite(Surface,mes,6,2, RGB_ICEWHITE, WTMODE_OUTLINED);
-	} else {
+	}
+#ifdef NETWORKCONF
+        else if (RUN_MODE == RUN_NETWORK) {
+            // TODO: show network conf
+		_stprintf(mes,_T("%s"),TEXT("WIFI : ON"));
+		RawWrite(Surface,mes,4,2, RGB_AMBER, WTMODE_OUTLINED);
+
+		_stprintf(mes,_T("%s"),TEXT("FTP : ON"));
+		RawWrite(Surface,mes,5,2, RGB_AMBER, WTMODE_OUTLINED);
+
+		_stprintf(mes,_T("%s"),TEXT("TELNET : ON"));
+		RawWrite(Surface,mes,6,2, RGB_AMBER, WTMODE_OUTLINED);
+                
+		_stprintf(mes,_T("%s"),TEXT("USB : ON"));
+		RawWrite(Surface,mes,7,2, RGB_AMBER, WTMODE_OUTLINED);
+        }
+#endif
+        else {
 		_stprintf(mes,_T("%s"),PilotName_Config);
 		RawWrite(Surface,mes,4,2, RGB_ICEWHITE, WTMODE_OUTLINED);
 
@@ -231,6 +249,7 @@ static void OnCloseClicked(WndButton* pWnd) {
     LKSound(_T("LK_SLIDE.WAV"));
     switch (RUN_MODE) {
         case RUN_DUALPROF:
+        case RUN_NETWORK:
             RUN_MODE = RUN_WELCOME;
             break;
     }
@@ -285,6 +304,44 @@ static void OnPILOTClicked(WndButton* pWnd) {
     wf->SetModalResult(mrOK);
 }
 
+#ifdef NETWORKCONF
+static void OnKOBOClicked(WndButton* pWnd) {
+    RUN_MODE = RUN_KOBO;
+    LKSound(_T("LK_SLIDE.WAV"));
+    wf->SetModalResult(mrOK);
+}
+
+static void OnNETWORKClicked(WndButton* pWnd) {
+    RUN_MODE = RUN_NETWORK;
+    LKSound(_T("LK_SLIDE.WAV"));
+    wf->SetModalResult(mrOK);
+}
+
+static void OnWIFIClicked(WndButton* pWnd) {
+    RUN_MODE = RUN_WIFI;
+    LKSound(_T("LK_SLIDE.WAV"));
+    wf->SetModalResult(mrOK);
+}
+
+static void OnFTPClicked(WndButton* pWnd) {
+    RUN_MODE = RUN_FTP;
+    LKSound(_T("LK_SLIDE.WAV"));
+    wf->SetModalResult(mrOK);
+}
+
+static void OnUSBClicked(WndButton* pWnd) {
+    RUN_MODE = RUN_USB;
+    LKSound(_T("LK_SLIDE.WAV"));
+    wf->SetModalResult(mrOK);
+}
+
+static void OnTELNETClicked(WndButton* pWnd) {
+    RUN_MODE = RUN_TELNET;
+    LKSound(_T("LK_SLIDE.WAV"));
+    wf->SetModalResult(mrOK);
+}
+#endif
+
 static CallBackTableEntry_t CallBackTable[] = {
     OnPaintCallbackEntry(OnSplashPaint),
     EndCallBackEntry()
@@ -304,14 +361,22 @@ short dlgStartupShowModal(void){
 
   TCHAR filename[MAX_PATH];
   _tcscpy(filename,_T(""));
-
+  
   // FLY SIM PROFILE EXIT
   if (RUN_MODE==RUN_WELCOME) {
 	if (ScreenLandscape) {
+#ifdef KOBO
+		LocalPathS(filename, TEXT("dlgFlySimKobo_L.xml"));
+#else
 		LocalPathS(filename, TEXT("dlgFlySim_L.xml"));
+#endif
 		wf = dlgLoadFromXML(CallBackTable, filename, TEXT("IDR_XML_FLYSIM_L"));
 	} else {
+#ifdef KOBO
+		LocalPathS(filename, TEXT("dlgFlySimKobo_P.xml"));
+#else
 		LocalPathS(filename, TEXT("dlgFlySim_P.xml"));
+#endif
 		wf = dlgLoadFromXML(CallBackTable, filename, TEXT("IDR_XML_FLYSIM_P"));
 	}
 	if (!wf) {
@@ -319,7 +384,7 @@ short dlgStartupShowModal(void){
 	}
   }
 
-  //  PROFILE AIRCRAFT  CLOSE
+  // Show all profile configuration
   if (RUN_MODE==RUN_DUALPROF) {
 	if (!ScreenLandscape) {
 		LocalPathS(filename, TEXT("dlgDualProfile_L.xml"));
@@ -330,6 +395,39 @@ short dlgStartupShowModal(void){
 	}
 	if (!wf) return 0;
   }
+
+#ifdef NETWORKCONF
+  // Show all network configuration
+  if (RUN_MODE==RUN_NETWORK) {
+        
+	if (ScreenLandscape) {
+		LocalPathS(filename, TEXT("dlgNetwork_L.xml"));
+		wf = dlgLoadFromXML(CallBackTable, filename, TEXT("IDR_XML_NETWORK_L"));
+	} else {
+		LocalPathS(filename, TEXT("dlgNetwork_P.xml"));
+		wf = dlgLoadFromXML(CallBackTable, filename, TEXT("IDR_XML_NETWORK_P"));
+	}
+	if (!wf) return 0;
+  }
+
+  // Choose network config
+  if (RUN_MODE==RUN_WIFI || RUN_MODE==RUN_FTP || RUN_MODE==RUN_TELNET || RUN_MODE==RUN_USB) {
+      // TODO : set network conf
+#ifdef KOBO
+      if (RUN_MODE==RUN_WIFI) {
+          KoboWifiOn();
+      } else if (RUN_MODE==RUN_FTP) {
+          KoboRunFtpd();
+      } else if (RUN_MODE==RUN_TELNET) {
+          KoboRunTelnetd();
+      } else if (RUN_MODE==RUN_USB) {
+          KoboExportUSBStorage();
+      }
+#endif
+      RUN_MODE=RUN_NETWORK;
+      return 1;
+  }
+#endif
 
   // CHOOSE PROFILE
   if (RUN_MODE==RUN_PROFILE || RUN_MODE==RUN_AIRCRAFT || RUN_MODE==RUN_PILOT || RUN_MODE==RUN_DEVICE) {
@@ -355,6 +453,10 @@ short dlgStartupShowModal(void){
 	((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetOnClickNotify(OnSIMClicked);
 	((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetOnClickNotify(OnDUALPROFILEClicked);
 	((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetOnClickNotify(OnEXITClicked);
+#ifdef NETWORKCONF
+	((WndButton *)wf->FindByName(TEXT("cmdKOBO"))) ->SetOnClickNotify(OnKOBOClicked);
+	((WndButton *)wf->FindByName(TEXT("cmdNETWORK"))) ->SetOnClickNotify(OnNETWORKClicked);
+#endif
 	if (ScreenLandscape) {
 		
 	    unsigned int lx;
@@ -368,15 +470,19 @@ short dlgStartupShowModal(void){
             ((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetWidth(w);
             ((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetWidth(w);
             ((WndButton *)wf->FindByName(TEXT("cmdFLY"))) ->SetWidth(w);
+            ((WndButton *)wf->FindByName(TEXT("cmdKOBO"))) ->SetWidth(w);
+            ((WndButton *)wf->FindByName(TEXT("cmdNETWORK"))) ->SetWidth(w);
 
             lx=SPACEBORDER-1; // count from 0
             ((WndButton *)wf->FindByName(TEXT("cmdFLY"))) ->SetLeft(lx);
+            ((WndButton *)wf->FindByName(TEXT("cmdKOBO"))) ->SetLeft(lx);
             lx+=w+SPACEBORDER;
             ((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetLeft(lx);
             lx+=w+SPACEBORDER;
             ((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetLeft(lx);
             lx+=w+SPACEBORDER;
             ((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetLeft(lx);
+            ((WndButton *)wf->FindByName(TEXT("cmdNETWORK"))) ->SetLeft(lx);
 
 	} else {
 		PROFWIDTH=IBLSCALE(236);
@@ -384,6 +490,8 @@ short dlgStartupShowModal(void){
 		PROFHEIGHT=NIBLSCALE(25);
 		PROFSEPARATOR=NIBLSCALE(2);
             int h=  ScreenSizeY - IBLSCALE(90); // 40+5+40+5
+            ((WndButton *)wf->FindByName(TEXT("cmdKOBO"))) ->SetTop(h - IBLSCALE(45));
+            ((WndButton *)wf->FindByName(TEXT("cmdNETWORK"))) ->SetTop(h - IBLSCALE(45));
             ((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetTop(h);
             ((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetTop(h);
             ((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetTop(h + IBLSCALE(45));
@@ -391,79 +499,23 @@ short dlgStartupShowModal(void){
 
 	}
   }
-
+ 
   if (RUN_MODE==RUN_DUALPROF) {
-	((WndButton *)wf->FindByName(TEXT("cmdAIRCRAFT"))) ->SetOnClickNotify(OnAIRCRAFTClicked);
-	((WndButton *)wf->FindByName(TEXT("cmdPROFILE"))) ->SetOnClickNotify(OnPROFILEClicked);
-	((WndButton *)wf->FindByName(TEXT("cmdDEVICE"))) ->SetOnClickNotify(OnDEVICEClicked);
-	((WndButton *)wf->FindByName(TEXT("cmdPILOT"))) ->SetOnClickNotify(OnPILOTClicked);
-	((WndButton *)wf->FindByName(TEXT("cmdCLOSE"))) ->SetOnClickNotify(OnCloseClicked);
-
-	unsigned int lx;
-	unsigned int w;
-	unsigned int SPACEBORDER;
-
-	if (ScreenLandscape) {
-
-		PROFWIDTH=(ScreenSizeX-IBLSCALE(320))/3;
-
-		SPACEBORDER=NIBLSCALE(2);
-
-		w= ( ScreenSizeX - (SPACEBORDER*6) ) /5;
-
-		((WndButton *)wf->FindByName(TEXT("cmdAIRCRAFT"))) ->SetWidth(w);
-		((WndButton *)wf->FindByName(TEXT("cmdPROFILE"))) ->SetWidth(w);
-		((WndButton *)wf->FindByName(TEXT("cmdDEVICE"))) ->SetWidth(w);
-		((WndButton *)wf->FindByName(TEXT("cmdPILOT"))) ->SetWidth(w);
-		((WndButton *)wf->FindByName(TEXT("cmdCLOSE"))) ->SetWidth(w);
-
-		lx=SPACEBORDER-1; // count from 0
-		((WndButton *)wf->FindByName(TEXT("cmdAIRCRAFT"))) ->SetLeft(lx);
-		lx+=w+SPACEBORDER;
-		((WndButton *)wf->FindByName(TEXT("cmdPROFILE"))) ->SetLeft(lx);
-		lx+=w+SPACEBORDER;
-		((WndButton *)wf->FindByName(TEXT("cmdDEVICE"))) ->SetLeft(lx);
-		lx+=w+SPACEBORDER;
-		((WndButton *)wf->FindByName(TEXT("cmdPILOT"))) ->SetLeft(lx);
-		lx+=w+SPACEBORDER;
-		((WndButton *)wf->FindByName(TEXT("cmdCLOSE"))) ->SetLeft(lx);
-
-	} else {
-		SPACEBORDER=NIBLSCALE(2);
-		w= ( ScreenSizeX - (SPACEBORDER*3) ) /2;
-
-		((WndButton *)wf->FindByName(TEXT("cmdAIRCRAFT"))) ->SetWidth(w);
-		((WndButton *)wf->FindByName(TEXT("cmdPROFILE"))) ->SetWidth(w);
-		lx=SPACEBORDER-1; // count from 0
-		((WndButton *)wf->FindByName(TEXT("cmdAIRCRAFT"))) ->SetLeft(lx);
-		lx+=w+SPACEBORDER;
-		((WndButton *)wf->FindByName(TEXT("cmdPROFILE"))) ->SetLeft(lx);
-
-		w= ( ScreenSizeX - (SPACEBORDER*4) ) /3;
-		((WndButton *)wf->FindByName(TEXT("cmdDEVICE"))) ->SetWidth(w);
-		((WndButton *)wf->FindByName(TEXT("cmdPILOT"))) ->SetWidth(w);
-		((WndButton *)wf->FindByName(TEXT("cmdCLOSE"))) ->SetWidth(w);
-		lx=SPACEBORDER-1; // count from 0
-		((WndButton *)wf->FindByName(TEXT("cmdDEVICE"))) ->SetLeft(lx);
-		lx+=w+SPACEBORDER;
-		((WndButton *)wf->FindByName(TEXT("cmdPILOT"))) ->SetLeft(lx);
-		lx+=w+SPACEBORDER;
-		((WndButton *)wf->FindByName(TEXT("cmdCLOSE"))) ->SetLeft(lx);
-
-		// We could greatly simplify these, now that we use dynamic scaling here.
-		PROFWIDTH=IBLSCALE(236);
-		PROFACCEPTWIDTH=NIBLSCALE(45);
-		PROFHEIGHT=NIBLSCALE(25);
-		PROFSEPARATOR=NIBLSCALE(2);
-
-            int h=  ScreenSizeY - IBLSCALE(90); // 40+5+40+5
-            ((WndButton *)wf->FindByName(TEXT("cmdAIRCRAFT"))) ->SetTop(h);
-            ((WndButton *)wf->FindByName(TEXT("cmdPROFILE"))) ->SetTop(h);
-            ((WndButton *)wf->FindByName(TEXT("cmdDEVICE"))) ->SetTop(h + IBLSCALE(45));
-            ((WndButton *)wf->FindByName(TEXT("cmdPILOT"))) ->SetTop(h + IBLSCALE(45));
-            ((WndButton *)wf->FindByName(TEXT("cmdCLOSE"))) ->SetTop(h + IBLSCALE(45));
-	}
+      PtrCallback ptrCallback[5] = {&OnAIRCRAFTClicked, &OnPROFILEClicked, &OnDEVICEClicked, &OnPILOTClicked, &OnCloseClicked};
+      
+      dlgShow5Item(TEXT("cmdAIRCRAFT"), TEXT("cmdPROFILE"), TEXT("cmdDEVICE"), TEXT("cmdPILOT"), TEXT("cmdCLOSE"),
+              ptrCallback,
+              &PROFWIDTH, &PROFACCEPTWIDTH, &PROFHEIGHT, &PROFSEPARATOR);
   }
+
+#ifdef NETWORKCONF
+  if (RUN_MODE==RUN_NETWORK) {
+      PtrCallback ptrCallback[5] = {&OnWIFIClicked, &OnFTPClicked, &OnTELNETClicked, &OnUSBClicked, &OnCloseClicked};
+      dlgShow5Item(TEXT("cmdWIFI"), TEXT("cmdFTP"), TEXT("cmdTELNET"), TEXT("cmdUSB"), TEXT("cmdCLOSE"),
+              ptrCallback,
+              &PROFWIDTH, &PROFACCEPTWIDTH, &PROFHEIGHT, &PROFSEPARATOR);
+  }
+#endif
 
 
 
@@ -743,10 +795,85 @@ _exit:
 	return 0;	// do not repeat dialog
   }
 
-  if (RUN_MODE==RUN_EXIT || RUN_MODE==RUN_SHUTDOWN)
+  if (RUN_MODE==RUN_EXIT || RUN_MODE==RUN_SHUTDOWN || RUN_MODE == RUN_KOBO)
 	return -1;	// terminate
   else
 	return 1;	// repeat dialog
 
 }
 
+void dlgShow5Item(const TCHAR *item1, const TCHAR *item2, const TCHAR *item3, const TCHAR *item4, const TCHAR *item5,
+        PtrCallback ptrCallback[5],
+        int *PROFWIDTH, int *PROFACCEPTWIDTH, int *PROFHEIGHT, int *PROFSEPARATOR) {
+	((WndButton *)wf->FindByName(item1)) ->SetOnClickNotify(ptrCallback[0]);
+	((WndButton *)wf->FindByName(item2)) ->SetOnClickNotify(ptrCallback[1]);
+	((WndButton *)wf->FindByName(item3)) ->SetOnClickNotify(ptrCallback[2]);
+	((WndButton *)wf->FindByName(item4)) ->SetOnClickNotify(ptrCallback[3]);
+	((WndButton *)wf->FindByName(item5)) ->SetOnClickNotify(ptrCallback[4]);
+
+	unsigned int lx;
+	unsigned int w;
+	unsigned int SPACEBORDER;
+
+	if (ScreenLandscape) {
+
+		*PROFWIDTH=(ScreenSizeX-IBLSCALE(320))/3;
+
+		SPACEBORDER=NIBLSCALE(2);
+
+		w= ( ScreenSizeX - (SPACEBORDER*6) ) /5;
+
+		((WndButton *)wf->FindByName(item1)) ->SetWidth(w);
+		((WndButton *)wf->FindByName(item2)) ->SetWidth(w);
+		((WndButton *)wf->FindByName(item3)) ->SetWidth(w);
+		((WndButton *)wf->FindByName(item4)) ->SetWidth(w);
+		((WndButton *)wf->FindByName(item5)) ->SetWidth(w);
+
+		lx=SPACEBORDER-1; // count from 0
+		((WndButton *)wf->FindByName(item1)) ->SetLeft(lx);
+		lx+=w+SPACEBORDER;
+		((WndButton *)wf->FindByName(item2)) ->SetLeft(lx);
+		lx+=w+SPACEBORDER;
+		((WndButton *)wf->FindByName(item3)) ->SetLeft(lx);
+		lx+=w+SPACEBORDER;
+		((WndButton *)wf->FindByName(item4)) ->SetLeft(lx);
+		lx+=w+SPACEBORDER;
+		((WndButton *)wf->FindByName(item5)) ->SetLeft(lx);
+
+	} else {
+		SPACEBORDER=NIBLSCALE(2);
+		w= ( ScreenSizeX - (SPACEBORDER*3) ) /2;
+
+		((WndButton *)wf->FindByName(item1)) ->SetWidth(w);
+		((WndButton *)wf->FindByName(item2)) ->SetWidth(w);
+		lx=SPACEBORDER-1; // count from 0
+		((WndButton *)wf->FindByName(item1)) ->SetLeft(lx);
+		lx+=w+SPACEBORDER;
+		((WndButton *)wf->FindByName(item2)) ->SetLeft(lx);
+
+		w= ( ScreenSizeX - (SPACEBORDER*4) ) /3;
+		((WndButton *)wf->FindByName(item3)) ->SetWidth(w);
+		((WndButton *)wf->FindByName(item4)) ->SetWidth(w);
+		((WndButton *)wf->FindByName(item5)) ->SetWidth(w);
+		lx=SPACEBORDER-1; // count from 0
+		((WndButton *)wf->FindByName(item3)) ->SetLeft(lx);
+		lx+=w+SPACEBORDER;
+		((WndButton *)wf->FindByName(item4)) ->SetLeft(lx);
+		lx+=w+SPACEBORDER;
+		((WndButton *)wf->FindByName(item5)) ->SetLeft(lx);
+
+		// We could greatly simplify these, now that we use dynamic scaling here.
+		*PROFWIDTH=IBLSCALE(236);
+		*PROFACCEPTWIDTH=NIBLSCALE(45);
+		*PROFHEIGHT=NIBLSCALE(25);
+		*PROFSEPARATOR=NIBLSCALE(2);
+
+            int h=  ScreenSizeY - IBLSCALE(90); // 40+5+40+5
+            ((WndButton *)wf->FindByName(item1)) ->SetTop(h);
+            ((WndButton *)wf->FindByName(item2)) ->SetTop(h);
+            ((WndButton *)wf->FindByName(item3)) ->SetTop(h + IBLSCALE(45));
+            ((WndButton *)wf->FindByName(item4)) ->SetTop(h + IBLSCALE(45));
+            ((WndButton *)wf->FindByName(item5)) ->SetTop(h + IBLSCALE(45));
+	}
+    
+}

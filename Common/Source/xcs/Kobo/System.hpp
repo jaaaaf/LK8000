@@ -44,6 +44,10 @@ KoboExportUSBStorage();
 void
 KoboUnexportUSBStorage();
 
+void
+KoboToggleUSBStorage();
+
+
 gcc_pure
 bool
 IsKoboWifiOn();

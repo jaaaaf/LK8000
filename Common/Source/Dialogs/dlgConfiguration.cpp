@@ -30,6 +30,7 @@
 #include "BtHandler.h"
 #include <functional>
 #include "Sound/Sound.h"
+#include "Kobo/System.hpp"
 
 using namespace std::placeholders;
 

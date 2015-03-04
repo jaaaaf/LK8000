@@ -2086,6 +2086,9 @@ _@M2183_ "»"
 _@M2184_ "‹"
 _@M2185_ "›"
 
+_@M2186_ "KOBO"
+_@M2187_ "USB"
+
 # New CustomKey labels for Custom Menu
 _@M2200_ "----"
 _@M2201_ "Menu"
@@ -2141,6 +2144,12 @@ _@M2248_  "No Near Object found!"
 _@M2249_  "DspMode"
 
 _@M2250_ "Ext. Sound"
+_@M2260_ "KOBO"
+_@M2261_ "NETWORK"
+_@M2262_ "WIFI"
+_@M2263_ "FTP"
+_@M2264_ "TELNET"
+_@M2265_ "USB"
 
 # MAX 2500! 
 # (Reserved for custom menus up to 2300!)

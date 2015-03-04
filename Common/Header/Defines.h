@@ -818,6 +818,14 @@
 #define RUN_SIM_SECONDARY_UNIT	0x22
 #define RUN_EXEC		0x04
 #define RUN_PASSIVE		0x21
+#ifdef NETWORKCONF
+#define RUN_KOBO		0x23
+#define RUN_NETWORK 		0x24
+#define RUN_WIFI 		0x25
+#define RUN_USB 		0x26
+#define RUN_FTP 		0x27
+#define RUN_TELNET 		0x28
+#endif
 
 #define LKINFOFONT      LK8SmallFont            // was InfoWindowFont
 // km for distance, kmh for speed etc.  in map overlay
