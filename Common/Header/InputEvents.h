@@ -14,6 +14,14 @@ typedef void (*pt2Event)(const TCHAR *);
 
 class InputEvents {
  public:
+  
+  typedef enum {
+    PopupWaypoint,
+    PopupThermal,
+    PopupTraffic,
+  } PopupType;
+     
+     
   static void readFile();
   static void UnloadString();
 
@@ -29,6 +37,7 @@ class InputEvents {
   static bool processNmea(int key);
   static bool processButton(int bindex);
   static bool processGlideComputer(int);
+  static void processPopupDetails(PopupType type, int index);
   static void DoQueuedEvents(void);
   static void processGo(int event_id);
   static int  makeEvent(void (*event)(const TCHAR *), const TCHAR *misc, int next = 0);
@@ -104,11 +113,14 @@ class InputEvents {
   static void eventChangeHGPS(const TCHAR *misc);
   static void eventChangeGS(const TCHAR *misc);
   static void eventChangeTurn(const TCHAR *misc);
+  static void eventChangeNettoVario(const TCHAR *misc);
   static void eventService(const TCHAR *misc);
   
   static void eventInfoStripe(const TCHAR *misc);
   static void eventInfoPage(const TCHAR *misc);
   static void eventModeType(const TCHAR *misc);
+  
+  static void eventShowMultiselect(const TCHAR *misc);
   // -------
 
   static void showErrors();
@@ -124,6 +136,7 @@ class InputEvents {
  private:
   static bool processGlideComputer_real(int);
   static bool processNmea_real(int key);
+  static void processPopupDetails_real();
 };
 
 
@@ -153,6 +166,8 @@ enum {
   GCE_TEAM_POS_REACHED,
   GCE_ARM_READY,
   GCE_TASK_CONFIRMSTART,
+  GCE_POPUP_MULTISELECT,
+  GCE_WAYPOINT_DETAILS_SCREEN,
   GCE_COUNT			// How many we have for arrays etc
 };
 

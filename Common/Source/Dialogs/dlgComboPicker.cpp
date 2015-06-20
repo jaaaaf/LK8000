@@ -27,24 +27,31 @@ ComboList * ComboListPopup=NULL;
 static TCHAR sSavedInitialValue[ComboPopupITEMMAX];
 static int iSavedInitialDataIndex=-1;
 
-static void OnPaintComboPopupListItem(WindowControl * Sender, LKSurface& Surface){
+static void OnPaintComboPopupListItem(WindowControl * Sender, LKSurface& Surface) {
 
-  (void)Sender;
+    if (Sender) {
 
-  if ( ComboListPopup->ComboPopupDrawListIndex >= 0 && 
-        ComboListPopup->ComboPopupDrawListIndex < ComboListPopup->ComboPopupItemCount ) {
+        if (ComboListPopup->ComboPopupDrawListIndex >= 0 &&
+                ComboListPopup->ComboPopupDrawListIndex < ComboListPopup->ComboPopupItemCount) {
 
-	int w;
+            // Fill Background with Highlight color if Selected Item
+            if (!Sender->HasFocus() && ComboListPopup->ComboPopupItemIndex == ComboListPopup->ComboPopupDrawListIndex) {
+                RECT rc = Sender->GetClientRect();
+                Surface.FillRect(&rc, LKBrush_Higlighted);
+            }
 
-	w=Sender->GetWidth();
+            const int w = Sender->GetWidth();
+            const int h = Sender->GetHeight();
 
-    Surface.SetBackgroundTransparent();
-    Surface.SetTextColor(RGB_BLACK);
-	Surface.DrawTextClip(2*ScreenScale,
-		2*ScreenScale,
-		ComboListPopup->ComboPopupItemList[ComboListPopup->ComboPopupDrawListIndex]->StringValueFormatted,
-		w-ScreenScale*5);
-  }
+            const TCHAR* szText = ComboListPopup->ComboPopupItemList[ComboListPopup->ComboPopupDrawListIndex]->StringValueFormatted;
+
+            Surface.SetBackgroundTransparent();
+            Surface.SetTextColor(RGB_BLACK);
+            const int xText = 3 * ScreenScale;
+            const int yText = (h - Surface.GetTextHeight(szText)) / 2;
+            Surface.DrawTextClip(xText, yText, szText, w - ScreenScale * 5);
+        }
+    }
 }
 
 static void OnComboPopupListInfo(WindowControl * Sender, WndListFrame::ListInfo_t *ListInfo)
@@ -180,10 +187,10 @@ int dlgComboPicker(WndProperty* theProperty){
       iSavedInitialDataIndex=ComboListPopup->ComboPopupItemList[ComboListPopup->ComboPopupItemSavedIndex]->DataFieldIndex;
       ComboPopupDataField->CopyString(sSavedInitialValue,false);
     }
-    
+   
     WindowControl* pBtHelp = wf->FindByName(TEXT("cmdHelp"));
     if(pBtHelp) {
-        pBtHelp->SetVisible(wComboPopupWndProperty->GetHelpText() != NULL);
+       pBtHelp->SetVisible(wComboPopupWndProperty->HasHelpText());
     }
 
     wf->ShowModal();

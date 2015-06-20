@@ -10,6 +10,7 @@
 #include <ctype.h> // needed for Wine
 #include "Topology.h"
 #include "Multimap.h"
+#include "OS/Memory.h"
 
 #include <Poco/Latin1Encoding.h>
 #include <Poco/UTF16Encoding.h>
@@ -62,15 +63,11 @@ void Topology::loadPenBrush(const LKColor thecolor) {
 			case ss480x800:
 				psize=2;
 				break;
-			case ss896x672:
-				psize=3;
-				break;
-			//case ss480x272:
-			//case ss480x234:
-			//case ss240x320:
-			//case ss272x480:
 			default:
-				psize=NIBLSCALE(1);
+				if (ScreenLandscape)
+				    psize=3;
+				else
+				    psize=NIBLSCALE(1);
 				break;
 		}
 		break;
@@ -87,14 +84,11 @@ void Topology::loadPenBrush(const LKColor thecolor) {
 			case ss480x800:
 				psize=2;
 				break;
-			case ss896x672:
-				psize=3;
-				break;
-			//case ss480x234:
-			//case ss240x320:
-			//case ss272x480:
 			default:
-				psize=NIBLSCALE(1);
+				if (ScreenLandscape)
+				    psize=3;
+				else
+				    psize=NIBLSCALE(1);
 				break;
 		}
 		break;
@@ -109,14 +103,6 @@ void Topology::loadPenBrush(const LKColor thecolor) {
 			case ss480x800:
 				psize=NIBLSCALE(1);
 				break;
-			case ss896x672:
-				psize=2;
-				break;
-			//case ss480x234:
-			//case ss400x240:
-			//case ss320x240:
-			//case ss240x320:
-			//case ss272x480:
 			default:
 				psize=NIBLSCALE(1);
 				break;
@@ -124,17 +110,6 @@ void Topology::loadPenBrush(const LKColor thecolor) {
 		break;
 	case 60: // railroads
 		switch(ScreenSize) {
-			//case ss800x480:
-			//case ss640x480:
-			//case ss896x672:
-			//case ss480x272:
-			//case ss480x234:
-			//case ss400x240:
-			//case ss320x240:
-			//case ss480x640:
-			//case ss480x800:
-			//case ss240x320:
-			//case ss272x480:
 			default:
 				psize=1;
 		}
@@ -183,8 +158,8 @@ void Topology::initCache()
   // Unfortunatelly I don't find a suitable algorithm to estimate the loaded
   // shapefile's memory footprint so we never choose mode2. KR
   // v5 note by Paolo: mode2 had a critical bug in delete, so good we did not use it
-  long free_size = CheckFreeRam();
-  long bounds_size = sizeof(rectObj)*shpfile.numshapes;
+  size_t free_size = CheckFreeRam();
+  size_t bounds_size = sizeof(rectObj)*shpfile.numshapes;
 
   //Cache mode selection based on available memory
   cache_mode = 0;
@@ -503,7 +478,7 @@ void Topology::updateCache(rectObj thebounds, bool purgeonly) {
 
 #ifdef DEBUG_TFC
   long free_size = CheckFreeRam();
-  StartupStore(TEXT("   UpdateCache() ends, shps_visible=%d ram=%ldM (%dms)%s"),shapes_visible_count, free_size/(1024*1024), Poco::Timespan(starttick.elapsed()).totalMilliseconds(),NEWLINE);
+  StartupStore(TEXT("   UpdateCache() ends, shps_visible=%d ram=%luM (%dms)%s"),shapes_visible_count, free_size/(1024*1024), Poco::Timespan(starttick.elapsed()).totalMilliseconds(),NEWLINE);
 #endif
 }
 
@@ -561,7 +536,7 @@ void Topology::Paint(LKSurface& Surface, const RECT& rc) {
     hbOld = Surface.SelectObject(hbBrush);
   }
 
-  const auto hfOld = Surface.SelectObject(MapLabelFont);
+  const auto hfOld = Surface.SelectObject(MapTopologyFont);
 
   // get drawing info
   int iskip = 1;
@@ -585,7 +560,6 @@ void Topology::Paint(LKSurface& Surface, const RECT& rc) {
   rectObj screenRect = MapWindow::screenbounds_latlon;
 
   static POINT pt[MAXCLIPPOLYGON];
-  bool labelprinted=false;
 
   for (int ixshp = 0; ixshp < shpfile.numshapes; ixshp++) {
     
@@ -612,10 +586,10 @@ void Topology::Paint(LKSurface& Surface, const RECT& rc) {
 				MapWindow::LatLon2Screen(shape->line[tt].point[jj].x, shape->line[tt].point[jj].y, sc);
 				if (dobitmap) {
 					// bugfix 101212 missing case for scaleCategory 0 (markers)
-					if (scaleCategory==0||cshape->renderSpecial(Surface, sc.x, sc.y,labelprinted))
+					if (scaleCategory==0||cshape->renderSpecial(Surface, sc.x, sc.y, rc))
 						MapWindow::DrawBitmapIn(Surface, sc, hBitmap,true);
 				} else {
-					cshape->renderSpecial(Surface, sc.x, sc.y,labelprinted);
+					cshape->renderSpecial(Surface, sc.x, sc.y, rc);
 				}
 			}
 		}
@@ -674,7 +648,7 @@ void Topology::Paint(LKSurface& Surface, const RECT& rc) {
             }
 	      }
           Surface.Polyline(pt, msize, rc);
-          cshape->renderSpecial(Surface,minx,miny,labelprinted);
+          cshape->renderSpecial(Surface,minx,miny,rc);
         }
       break;
       
@@ -710,7 +684,7 @@ void Topology::Paint(LKSurface& Surface, const RECT& rc) {
 				}
 			}
 			Surface.Polygon(pt, msize, rc);
-			cshape->renderSpecial(Surface,minx,miny,labelprinted);
+			cshape->renderSpecial(Surface,minx,miny,rc);
 		}
 	}
 	break;
@@ -810,7 +784,7 @@ bool XShapeLabel::nearestItem(int category, double lon, double lat) {
 }
 
 // Print topology labels
-bool XShapeLabel::renderSpecial(LKSurface& Surface, int x, int y, bool retval) {
+bool XShapeLabel::renderSpecial(LKSurface& Surface, int x, int y, const RECT& ClipRect) {
   if (label && ((GetMultimap_Labels()==MAPLABELS_ALLON)||(GetMultimap_Labels()==MAPLABELS_ONLYTOPO))) {
 
     //Do not waste time with null labels
@@ -838,12 +812,16 @@ bool XShapeLabel::renderSpecial(LKSurface& Surface, int x, int y, bool retval) {
 	}
 
 	// Do not print outside boundaries of Draw area
-	if (brect.bottom>=MapWindow::DrawRect.bottom ||
-		brect.top<=MapWindow::DrawRect.top ||
-		brect.left<=MapWindow::DrawRect.left ||
-		brect.right>=MapWindow::DrawRect.right) return false;
+	if (brect.bottom>=ClipRect.bottom ||
+		brect.top<=ClipRect.top ||
+		brect.left<=ClipRect.left ||
+		brect.right>=ClipRect.right) return false;
 
+        #ifdef UNDITHER
+	Surface.SetTextColor(LKColor(0,0,0));
+        #else
 	Surface.SetTextColor(LKColor(0,50,50)); // PETROL too light at 66
+        #endif
     
 	Surface.DrawText(x, y, label, size);
 	return true; // 101016
@@ -897,15 +875,15 @@ void XShapeLabel::setlabel(const char* src) {
     }
 #else
     // from Latin1 (ISO-8859-1) To Utf8
-    int size = strlen(src);
+    std::tstring Latin1String(src);
     std::tstring utf8String;
 
     Poco::Latin1Encoding Latin1Encoding;
     Poco::UTF8Encoding utf8Encoding;
 
     Poco::TextConverter converter(Latin1Encoding, utf8Encoding);
-    converter.convert(src, (int) size * sizeof (char*), utf8String);
-    size = utf8String.size();
+    converter.convert(Latin1String, utf8String);
+    size_t size = utf8String.size();
     if(size) {
         label = (TCHAR*) malloc(size * sizeof (TCHAR) + 1);
         strcpy(label, utf8String.c_str());

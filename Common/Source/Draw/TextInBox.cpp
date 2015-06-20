@@ -138,11 +138,11 @@ bool MapWindow::TextInBox(LKSurface& Surface, const RECT *clipRect,  const TCHAR
   }
 
   // landable waypoint label inside white box 
-  if (!Mode->NoSetFont) {  // VENTA5 predefined font from calling function
-    if (Mode->Border){
-      oldFont = Surface.SelectObject(MapWindowBoldFont);
+  if (!Mode->NoSetFont) {
+    if (Mode->Border || Mode->WhiteBold){
+      oldFont = Surface.SelectObject(MapWaypointBoldFont);
     } else {
-      oldFont = Surface.SelectObject(MapWindowFont);
+      oldFont = Surface.SelectObject(MapWaypointFont);
     }
   }
   

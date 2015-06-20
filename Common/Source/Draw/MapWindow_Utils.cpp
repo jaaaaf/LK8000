@@ -162,7 +162,6 @@ _normal_run:
     sv++;
   }
 
-#if LONGSNAIL
   // far visibility for long snail trail
 
   LONG_SNAIL_POINT *lsv= LongSnailTrail;
@@ -175,7 +174,6 @@ _normal_run:
 	    (lsv->Latitude< bounds.maxy));
       lsv++;
   }
-#endif
 
   // far visibility for waypoints
 /*
@@ -300,11 +298,18 @@ bool MapWindow::TargetMoved(double &longitude, double &latitude) {
 // And also for customkey action.
 //
 bool HaveGauges(void) {
-
-
   // GA has always the big compass overlay active
   if (ISGAAIRCRAFT) return true;
-
   return (GlideBarMode||LKVarioBar||ThermalBar);
-
 }
+
+// 
+// Same as above, but we also look if the gauges were drawn in the current run.
+// Notice that we are assuming all gauges were drawn before calling this function.
+//
+bool HaveGaugesDrawn(void) {
+  // GA has always the big compass overlay active
+  if (ISGAAIRCRAFT) return true;
+  return (GlideBarMode||LKVarioBar||(ThermalBar&&MapWindow::ThermalBarDrawn));
+}
+

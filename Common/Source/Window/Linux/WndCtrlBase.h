@@ -12,6 +12,7 @@
 #ifndef _LINUX_WNDCTRLBASE_H
 #define	_LINUX_WNDCTRLBASE_H
 #include "LKWindow.h"
+#include "Screen/ContainerWindow.hpp"
 
 class WndCtrlBase : public LKWindow<ContainerWindow> {
 public:
@@ -34,6 +35,9 @@ public:
     void SetWndName(const TCHAR * szName) {
         _szWndName = szName?szName:_T("");
     }
+    
+    virtual bool OnLButtonDown(const POINT& Pos) { return true; }
+    virtual bool OnLButtonUp(const POINT& Pos) { return true; }    
     
 protected:
     std::tstring _szWndName;

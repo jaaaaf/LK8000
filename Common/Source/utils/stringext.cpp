@@ -11,9 +11,11 @@
 #include <math.h>
 #include <string.h>
 #include <algorithm>
+#include <assert.h>
 #include "utf8/unchecked.h"
 
 #include "utils/heapcheck.h"
+#include "Util/UTF8.hpp"
 
 //______________________________________________________________________________
 
@@ -779,7 +781,7 @@ int utf2unicode(const char* utf, wchar_t* unicode, int maxChars)
   #endif
 }
 
-
+#ifdef _UNICODE
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 /// Converts Unicode string into US-ASCII string (writing as much as possible
 /// characters into @p ascii). Output string will always be terminated by '\0'.
@@ -820,6 +822,7 @@ int unicode2usascii(const wchar_t* unicode, char* ascii, int outSize)
 
   return((uc == 0) ? 1 : -1);
 } // Wide2Ascii()
+#endif
 
 
 int ascii2TCHAR(const char* ascii, TCHAR* unicode, int maxChars) {
@@ -836,7 +839,7 @@ int TCHAR2ascii(const TCHAR* unicode, char* ascii, int maxChars) {
 #if defined(_UNICODE)
     return  unicode2ascii(unicode, ascii, maxChars);
 #else
-    size_t len = std::min(_tcslen(ascii), (size_t)maxChars);
+    size_t len = std::min(_tcslen(unicode), (size_t)maxChars);
     _tcsncpy(ascii, unicode, len);
     return len;
 #endif 
@@ -853,11 +856,11 @@ int TCHAR2utf(const TCHAR* unicode, char* utf, int maxChars) {
     } 
     // if error, return simple copy
     len = std::min(_tcslen(unicode), (size_t)maxChars);
-    _tcsncpy(utf, unicode, len);
+    _tcsncpy(utf, unicode, maxChars);
     return len;
 #else
     size_t len = std::min(_tcslen(unicode), (size_t)maxChars);
-    _tcsncpy(utf, unicode, len+1);
+    _tcsncpy(utf, unicode, maxChars);
     return len;   
 #endif 
 }
@@ -871,6 +874,7 @@ int utf2TCHAR(const char* utf, TCHAR* unicode, int maxChars){
     utf2unicode(utf, temp, maxChars);
     return wcstombs(unicode, temp, maxChars);
 #else
+    assert(ValidateUTF8(utf));
     size_t len = std::min(_tcslen(utf), (size_t)maxChars);
     _tcsncpy(unicode, utf, len+1);
     return len;

@@ -13,7 +13,7 @@
 #include <cassert>
 
 #ifndef WIN32
-#include "Screen/VirtualCanvas.hpp"
+#include "Screen/BufferCanvas.hpp"
 #endif
 
 LKBitmapSurface::LKBitmapSurface() : LKSurface()
@@ -43,7 +43,7 @@ void LKBitmapSurface::Create(const LKSurface& Surface, unsigned width, unsigned 
     _hBitmap = LKBitmap (::CreateCompatibleBitmap(GetAttribDC(), width, height));
     _oldBitmap = LKBitmap((HBITMAP)::SelectObject(_OutputDC, _hBitmap));
 #else
-    _pCanvas = new VirtualCanvas(Surface, {width, height});
+    _pCanvas = new BufferCanvas(Surface, {width, height});
 #endif    
 }
 
@@ -59,6 +59,10 @@ void LKBitmapSurface::Resize(unsigned width, unsigned height) {
 
     _hBitmap = LKBitmap (::CreateCompatibleBitmap(GetAttribDC(), width, height));
     _oldBitmap = LKBitmap((HBITMAP)::SelectObject(_OutputDC, _hBitmap));
+#else
+    if(_pCanvas) {
+        static_cast<BufferCanvas*>(_pCanvas)->Resize({width, height});
+    }
 #endif
 }
 
@@ -72,6 +76,9 @@ void LKBitmapSurface::Release() {
         _hBitmap.Release();
     }
 #else
+    if(_pCanvas) {
+        static_cast<BufferCanvas*>(_pCanvas)->Destroy();
+    }
     delete _pCanvas;
     _pCanvas = nullptr;
 #endif
@@ -86,6 +93,8 @@ void LKMaskBitmapSurface::Create(const LKSurface& Surface, unsigned width, unsig
 
     _hBitmap = LKBitmap(::CreateBitmap(width, height, 1, 1, NULL));
     _oldBitmap = LKBitmap((HBITMAP)::SelectObject(_OutputDC, _hBitmap));
+#else 
+    LKBitmapSurface::Create(Surface, width, height);
 #endif
 }
 
@@ -101,5 +110,7 @@ void LKMaskBitmapSurface::Resize(unsigned width, unsigned height) {
 
     _hBitmap = LKBitmap(::CreateBitmap(width, height, 1, 1, NULL));
     _oldBitmap = LKBitmap((HBITMAP)::SelectObject(_OutputDC, _hBitmap));
+#else
+    LKBitmapSurface::Resize(width, height);
 #endif
 }

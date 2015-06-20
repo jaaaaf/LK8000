@@ -12,6 +12,9 @@
 #ifndef WndMainBase_H
 #define	WndMainBase_H
 
+#include "Event/Globals.hpp"
+#include "Event/Queue.hpp"
+#include "Event/Event.h"
 #include "Screen/SingleWindow.hpp"
 #include "WndPaint.h"
 
@@ -23,13 +26,22 @@ public:
     bool Create(const RECT& rect) {
         TopWindowStyle style;
         style.EnableDoubleClicks();
-        const SIZE size = rect.GetSize();
-        __super::Create(_T("LK8000"), size, style);
+#ifdef USE_FULLSCREEN
+        style.FullScreen();
+#endif
+        __super::Create(_T("LK8000"), rect.GetSize(), style);
         return this->IsDefined();
     }
 
     virtual void Redraw(const RECT& Rect) { 
         __super::Redraw(Rect);
+#if defined(ENABLE_SDL)
+#if !(SDL_MAJOR_VERSION >= 2)
+        SDL_Event event;
+        event.type = SDL_VIDEOEXPOSE;
+        ::SDL_PushEvent(&event);
+#endif
+#endif
     }
 
     virtual void Redraw() {

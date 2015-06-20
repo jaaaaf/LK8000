@@ -4,17 +4,21 @@
  */
 
 
-  Surface.SelectObject(LK8ValueFont);
+  Surface.SelectObject(LK8BottomBarValueFont);
   Surface.GetTextSize(BufferValue, _tcslen(BufferValue), &TextSize);
   if (showunit==true)
 	LKWriteText(Surface, BufferValue, rcx, yRow1Value, 0, WTMODE_NORMAL,WTALIGN_CENTER,barTextColor, false);
   else
+        #ifdef UNDITHER
+	LKWriteText(Surface, BufferValue, rcx, yRow1Value, 0, WTMODE_NORMAL,WTALIGN_CENTER,RGB_WHITE, false);
+	#else
 	LKWriteText(Surface, BufferValue, rcx, yRow1Value, 0, WTMODE_NORMAL,WTALIGN_CENTER,RGB_AMBER, false);
+	#endif
 
   if (showunit==true && !HideUnits) {
-	Surface.SelectObject(LK8UnitFont);
+	Surface.SelectObject(LK8BottomBarUnitFont);
 	LKWriteText(Surface, BufferUnit, rcx+(TextSize.cx/2)+NIBLSCALE(1), yRow1Unit , 0, WTMODE_NORMAL, WTALIGN_LEFT,barTextColor, false);
   }
-  Surface.SelectObject(LK8TitleNavboxFont);
+  Surface.SelectObject(LK8BottomBarTitleFont);
   rcy=yRow1Title;
 

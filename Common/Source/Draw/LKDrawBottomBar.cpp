@@ -20,6 +20,9 @@
 extern NMEAParser nmeaParser1;
 extern NMEAParser nmeaParser2;
 
+// Approx.size of the bottom-right icon corner on the bottom bar
+#define BB_ICONSIZE NIBLSCALE(26)
+
 void MapWindow::DrawBottomBar(LKSurface& Surface, const RECT& rc )
 {
 
@@ -30,6 +33,7 @@ void MapWindow::DrawBottomBar(LKSurface& Surface, const RECT& rc )
   int index=-1;
   double Value;
   short rcx, rcy;
+  short userow2=0;
 
   SIZE TextSize;
 
@@ -47,90 +51,68 @@ void MapWindow::DrawBottomBar(LKSurface& Surface, const RECT& rc )
   static short yRow1Value=0;
   static short yRow1Unit=0;
 
+  static int bbsplitter;   // how many items on a single row on the bottom bar
   static int splitoffset;
   static int splitoffset2; // second raw, which really is the first from top!
-
-  BrushReference brush_bar;
-  if (INVERTCOLORS) {
-    brush_bar = LKBrush_Black;
-  } else {
-    brush_bar = LKBrush_Nlight;
-  }
-
 
   if (DoInit[MDI_DRAWBOTTOMBAR]) {
 
 	wascircling=false;
 	OldBottomMode=BM_FIRST;
 
-	TCHAR Tdummy[]=_T("T");
-	int iconsize;
-
-	// All these values are fine tuned for font/resolution/screenmode.
-	// there is no speed issue inside doinit. take your time.
-	Surface.SelectObject(LK8TitleNavboxFont);
-	Surface.GetTextSize(Tdummy, _tcslen(Tdummy), &TextSize);
+	Surface.SelectObject(LK8BottomBarTitleFont);
+	Surface.GetTextSize(_T("M"), 1, &TextSize);
 	int syTitle = TextSize.cy;
-	Surface.SelectObject(LK8ValueFont);
-	Surface.GetTextSize(Tdummy, _tcslen(Tdummy), &TextSize);
+
+	Surface.SelectObject(LK8BottomBarUnitFont);
+	// m for meters unit, f is shorter anyway
+	Surface.GetTextSize(_T("m"), 1, &TextSize); 
+	int sxUnit = TextSize.cx;
+
+	Surface.SelectObject(LK8BottomBarValueFont);
+        // we need to be able to print 12345f with no problems
+	Surface.GetTextSize(_T("12345"), 5, &TextSize);
 	int syValue = TextSize.cy;
+	int sxValue = TextSize.cx + NIBLSCALE(2) + (HideUnits ? 0 : sxUnit);
 
-	switch (ScreenSize) {
-		// Row1 is the lower, Row2 is the top, for portrait
-		// WARNING, algos are wrong, need to check and recalculate for each resolution!!
-		// Changing font size in Utils2 does require checking and fixing here.
-		case ss480x640:
-		case ss480x800:
-		case ss240x320:
-		case ss272x480:
-			yRow2Value =  rc.bottom-(syValue*2);
-			yRow2Unit  =  yRow2Value;
-			yRow2Title =  yRow2Value - (syValue/2) - (syTitle/2) + NIBLSCALE(2);
-			yRow1Value =  rc.bottom-(syValue/2);
-			yRow1Unit  =  yRow1Value;
-			yRow1Title =  yRow1Value - (syValue/2) - (syTitle/2) + NIBLSCALE(2);
-			break;
-		
-		case ss800x480:
-		case ss640x480:
-		case ss400x240:
-			yRow2Value =  rc.bottom-(syValue*2);
-			yRow2Unit  =  rc.bottom-(syValue*2) - NIBLSCALE(2);
-			yRow2Title =  rc.bottom-(syValue*2) - syTitle;
-			yRow1Value =  rc.bottom-(syValue/2);
-			yRow1Unit  =  yRow1Value;
-			yRow1Title =  rc.bottom-(syValue/2) - syTitle;
-			break;
+	// The vertical align of fonts cannot be done using the TextSize metrics..
+	// because the reported height is considering also vertical spacing. 
+	// So this is a workaround. We cannot align perfectly.
+        // WARNING. Changing these settings will require also Fonts1.cpp sizing of BottomBar
+        // to be adjust as well!
 
-		default:
-			yRow2Value =  rc.bottom-(syValue*2);
-			yRow2Unit  =  rc.bottom-(syValue*2) - NIBLSCALE(2);
-			yRow2Title =  rc.bottom-(syValue*2) - syTitle;
-			yRow1Value =  rc.bottom-(syValue/2);
-			yRow1Unit  =  rc.bottom-(syValue/2) - NIBLSCALE(2);
-			yRow1Title =  rc.bottom-(syValue/2) - syTitle;
-			break;
-	}
+ 	yRow2Value =  rc.bottom-(syValue*2);
+	yRow2Title =  yRow2Value - (syValue/2) - (syTitle/2) + NIBLSCALE(2);
+	yRow2Unit  =  yRow2Value;
+
+	yRow1Value =  rc.bottom-(syValue/2);
+	yRow1Title =  yRow1Value - (syValue/2) - (syTitle/2) + NIBLSCALE(2);
+	yRow1Unit  =  yRow1Value;
+
+
+        if (ScreenLandscape) {
+		bbsplitter= (int) lround( (float) ((rc.right-rc.left)-NIBLSCALE(26)) / (float)(sxValue) );
+                if (bbsplitter>10) bbsplitter=10;
+		splitoffset= ((rc.right-BB_ICONSIZE)-rc.left)/bbsplitter;
+        } else {
+		bbsplitter= (int) lround( (float) ((rc.right-rc.left)-NIBLSCALE(26)) / (float)(sxValue) );
+                if (bbsplitter>10) bbsplitter=10;
+		splitoffset= ((rc.right-BB_ICONSIZE)-rc.left)/bbsplitter;
+		splitoffset2= splitoffset;
+        }
+	#if TESTBENCH
+	StartupStore(_T("... BOTTOMBAR splitter=%d\n"),bbsplitter);
+	#endif
 
 	
-	if (ScreenLandscape) {
-		iconsize=NIBLSCALE(26);
-		splitoffset= ((rc.right-iconsize)-rc.left)/splitter;
-	} else {
-		iconsize=NIBLSCALE(26);
-		splitoffset= ((rc.right-iconsize)-rc.left)/splitter;
-		// splitoffset2= (rc.right-rc.left)/splitter;
-		splitoffset2= splitoffset;
-	}
-
 	short ii;
 	// set correct initial bottombar stripe, excluding TRM
 	if(!ConfBB[BottomMode])
 	{
-	  for (ii=BM_CRU; ii<=BM_LAST;ii++) {
-		if (ConfBB[ii]) break;
-	  }
-      BottomMode=ii;
+	    for (ii=BM_CRU; ii<=BM_LAST;ii++) {
+                if (ConfBB[ii]) break;
+	    }
+            BottomMode=ii;
 	}
 
 	DoInit[MDI_DRAWBOTTOMBAR]=false; 
@@ -145,26 +127,19 @@ void MapWindow::DrawBottomBar(LKSurface& Surface, const RECT& rc )
     nrc.bottom=rc.bottom;
 
 
-    if (LKSurface::AlphaBlendSupported() && MapSpaceMode == MSM_MAP && BarOpacity < 100) {
-        ///////////////////////////////////////////////////////////////////
-        // this need to be changed,otherwise is destroy to late.
-        static bool InitFirst = true;
-        static LKBitmapSurface BckSurface;
-        if (DoInit[MDI_LOOKABLEND]) {
-            if(InitFirst) {
-                BckSurface.Create(Surface, rc.right, rc.bottom);
-            } else {
-                BckSurface.Resize(rc.right, rc.bottom);
-            }
-            DoInit[MDI_LOOKABLEND] = InitFirst = false;
-        }
-        ///////////////////////////////////////////////////////////////////
+    const LKBrush& brush_bar = INVERTCOLORS?LKBrush_Black:LKBrush_Nlight;
 
+    if (LKSurface::AlphaBlendSupported() && MapSpaceMode == MSM_MAP && BarOpacity < 100) {
         if (BarOpacity == 0) {
             barTextColor = RGB_BLACK;
         } else {
-            BckSurface.FillRect(&nrc, brush_bar);
-            Surface.AlphaBlend(nrc, BckSurface, nrc, BarOpacity * 255 / 100);
+#ifdef USE_GDI
+            TempSurface.FillRect(&nrc, brush_bar);
+            Surface.AlphaBlend(nrc, TempSurface, nrc, BarOpacity * 255 / 100);
+#else
+            const LKBrush AlphaBrush(brush_bar.GetColor().WithAlpha(BarOpacity * 255 / 100));
+            Surface.FillRect(&nrc, AlphaBrush);
+#endif
             if (BarOpacity > 25) {
                 barTextColor = RGB_WHITE;
             } else {
@@ -201,6 +176,7 @@ _afterautotrm:
    */
 
   showunit=true; // normally we do have a unit to show
+  int cpusummary=INVALID_VALUE;
 
 
   switch(BottomMode) {
@@ -220,7 +196,7 @@ _afterautotrm:
 		break;
 	case BM_AUX:
 		if (ISCAR) {
-			_stprintf(BufferTitle, MsgToken(1809)); // Moving
+			_tcscpy(BufferTitle, MsgToken(1809)); // Moving
 			if (DerivedDrawInfo.Flying) {
                                 showunit=Units::TimeToTextDown(BufferValue, (int)Trip_Moving_Time);
 				if (showunit)
@@ -293,7 +269,7 @@ _afterautotrm:
 		break;
 	case BM_AUX:
 		if (ISCAR) {
-			_stprintf(BufferTitle, MsgToken(1810)); // Steady
+			_tcscpy(BufferTitle, MsgToken(1810)); // Steady
 			if (DerivedDrawInfo.Flying) {
                                 showunit=Units::TimeToTextDown(BufferValue, (int)Trip_Steady_Time);
 				if (showunit)
@@ -362,6 +338,14 @@ _afterautotrm:
    *   THIRD VALUE
    */
 
+  if (bbsplitter<3) {
+      if (ScreenLandscape) goto EndOfNavboxes;
+      userow2++;
+      rcx=rc.left+(splitoffset2/2);
+  }
+  else {
+      rcx+=splitoffset;
+  }
   showunit=true;
   switch(BottomMode) {
 	case BM_TRM:
@@ -377,7 +361,7 @@ _afterautotrm:
 		break;
 	case BM_AUX:
 		if (ISCAR) {
-			_stprintf(BufferTitle, MsgToken(1811)); // Total
+			_tcscpy(BufferTitle, MsgToken(1811)); // Total
 			if (DerivedDrawInfo.Flying) {
                                 showunit=Units::TimeToTextDown(BufferValue, (int)(Trip_Steady_Time+Trip_Moving_Time));
 				if (showunit)
@@ -408,7 +392,7 @@ _afterautotrm:
   			_tcscpy(BufferUnit, TEXT(""));
 			if (SIMMODE) {
 				// LKTOKEN _@M1199_ "Sat"
-				_stprintf(BufferTitle, MsgToken(1199));
+				_tcscpy(BufferTitle, MsgToken(1199));
 				_stprintf(BufferValue,TEXT("SIM"));
 			} else {
 				Value=DrawInfo.SatellitesUsed;
@@ -451,12 +435,10 @@ _afterautotrm:
 		showunit=LKFormatValue(LK_ERROR, true, BufferValue, BufferUnit, BufferTitle);
 		break;
   }
-
-  rcx+=splitoffset;
-  if (ScreenLandscape) {
-	#include "LKMW3include_navbox1.cpp"
+  if (ScreenLandscape|| userow2) {
+      #include "LKMW3include_navbox1.cpp"
   } else {
-	#include "LKMW3include_navbox2.cpp"
+      #include "LKMW3include_navbox2.cpp"
   }
   LKWriteText(Surface, BufferTitle, rcx+NIBLSCALE(7), rcy, 0, WTMODE_NORMAL,WTALIGN_CENTER,barTextColor, false);
 
@@ -464,6 +446,15 @@ _afterautotrm:
    *   FOURTH VALUE
    */
 
+  if (bbsplitter<4) {
+      if (ScreenLandscape) goto EndOfNavboxes;
+      if (++userow2 >bbsplitter) goto EndOfNavboxes;
+      rcx=rc.left+(splitoffset2/2)+((userow2-1)*splitoffset2);;
+  }
+  else {
+      rcx+=splitoffset;
+  }
+  if (ScreenLandscape && (bbsplitter<4)) goto EndOfNavboxes;
   showunit=true;
   switch(BottomMode) {
 	case BM_TRM:
@@ -501,14 +492,14 @@ _afterautotrm:
 		break;
 	case BM_SYS:
 		// LKTOKEN _@M1068_ "HBAR"
-  		_stprintf(BufferTitle, MsgToken(1068));
+  		_tcscpy(BufferTitle, MsgToken(1068));
 		if (DrawInfo.BaroAltitudeAvailable) {
 			if (EnableNavBaroAltitude)
 				// LKTOKEN _@M894_ "ON"
-				_stprintf(BufferValue,MsgToken(894));
+				_tcscpy(BufferValue,MsgToken(894));
 			else
 				// LKTOKEN _@M491_ "OFF"
-				_stprintf(BufferValue,MsgToken(491));
+				_tcscpy(BufferValue,MsgToken(491));
 		} else
 			_stprintf(BufferValue,TEXT("---"));
   		showunit=false;
@@ -535,19 +526,24 @@ _afterautotrm:
 		break;
   }
 
-
-  if (ScreenLandscape) {
-	rcx+=splitoffset;
-  }else {
-	rcx=rc.left+(splitoffset2/2);
+  if (ScreenLandscape|| userow2) {
+      #include "LKMW3include_navbox1.cpp"
+  } else {
+      #include "LKMW3include_navbox2.cpp"
   }
-  #include "LKMW3include_navbox1.cpp"
   LKWriteText(Surface, BufferTitle, rcx+NIBLSCALE(7), rcy, 0, WTMODE_NORMAL,WTALIGN_CENTER,barTextColor, false);
 
   /*
    *   FIFTH VALUE
    */
-  if (ScreenLandscape && (splitter<5)) goto EndOfNavboxes;
+  if (bbsplitter<5) {
+      if (ScreenLandscape) goto EndOfNavboxes;
+      if (++userow2 >bbsplitter) goto EndOfNavboxes;
+      rcx=rc.left+(splitoffset2/2)+((userow2-1)*splitoffset2);;
+  }
+  else {
+      rcx+=splitoffset;
+  }
   showunit=true;
   switch(BottomMode) {
 	case BM_TRM:
@@ -598,7 +594,7 @@ _afterautotrm:
 			showunit=false;
 		}
  		// LKTOKEN _@M1200_ "Start"
-		_stprintf(BufferTitle, MsgToken(1200));
+		_tcscpy(BufferTitle, MsgToken(1200));
 		break;
 	case BM_ALT:
 		if (ScreenLandscape) {
@@ -610,12 +606,19 @@ _afterautotrm:
 		}
 		break;
 	case BM_SYS:
-		//showunit=LKFormatValue(LK_LOGGER, true, BufferValue, BufferUnit, BufferTitle);
-		showunit=true;
+
 		extern int CpuSummary();
-		_stprintf(BufferValue,_T("%d"),CpuSummary());
+		cpusummary=CpuSummary();
 		_tcscpy(BufferTitle,_T("CPU"));
-		_tcscpy(BufferUnit,_T("%"));
+
+		if (cpusummary!=INVALID_VALUE) {
+		    showunit=true;
+		    _stprintf(BufferValue,_T("%d"),cpusummary);
+		    _tcscpy(BufferUnit,_T("%"));
+		} else {
+		    showunit=false;
+		    _tcscpy(BufferValue, TEXT("---"));
+		}
 		break;
 	case BM_CUS2:
 		index=GetInfoboxIndex(5,MapWindow::Mode::MODE_FLY_CRUISE);
@@ -639,20 +642,25 @@ _afterautotrm:
 		break;
   }
 
-
-  if (ScreenLandscape) {
-	rcx+=splitoffset;
-  }else {
-	rcx+=splitoffset2;
+  if (ScreenLandscape|| userow2) {
+      #include "LKMW3include_navbox1.cpp"
+  } else {
+      #include "LKMW3include_navbox2.cpp"
   }
-  #include "LKMW3include_navbox1.cpp"
 
   LKWriteText(Surface, BufferTitle, rcx+NIBLSCALE(3), rcy, 0, WTMODE_NORMAL,WTALIGN_CENTER,barTextColor, false);
 
   /*
    *   SIXTH VALUE
    */
-  if (ScreenLandscape && (splitter<6)) goto EndOfNavboxes;
+  if (bbsplitter<6) {
+      if (ScreenLandscape) goto EndOfNavboxes;
+      if (++userow2 >bbsplitter) goto EndOfNavboxes;
+      rcx=rc.left+(splitoffset2/2)+((userow2-1)*splitoffset2);;
+  }
+  else {
+      rcx+=splitoffset;
+  }
   showunit=true;
   switch(BottomMode) {
 	case BM_TRM:
@@ -710,13 +718,192 @@ _afterautotrm:
 		break;
   }
 
-
-  if (ScreenLandscape) {
-	rcx+=splitoffset;
-  }else {
-	rcx+=splitoffset2;
+  if (ScreenLandscape|| userow2) {
+      #include "LKMW3include_navbox1.cpp"
+  } else {
+      #include "LKMW3include_navbox2.cpp"
   }
-  #include "LKMW3include_navbox1.cpp"
+  LKWriteText(Surface, BufferTitle, rcx+NIBLSCALE(3), rcy, 0, WTMODE_NORMAL,WTALIGN_CENTER,barTextColor, false);
+
+
+  /*
+   *   SEVENTH VALUE
+   */
+  if (bbsplitter<7) {
+      if (ScreenLandscape) goto EndOfNavboxes;
+      if (++userow2 >bbsplitter) goto EndOfNavboxes;
+      rcx=rc.left+(splitoffset2/2)+((userow2-1)*splitoffset2);
+  }
+  else {
+      rcx+=splitoffset;
+  }
+  showunit=true;
+  switch(BottomMode) {
+	case BM_TRM:
+		index=GetInfoboxIndex(7,MapWindow::Mode::MODE_FLY_CIRCLING);
+		showunit=LKFormatValue(index, true, BufferValue, BufferUnit, BufferTitle);
+		BufferTitle[7]='\0';
+		break;
+	case BM_CRU:
+		if (ISCAR)
+			showunit=LKFormatValue(LK_TIME_LOCAL, false, BufferValue, BufferUnit, BufferTitle); //QUI
+		else
+			showunit=LKFormatValue(LK_LD_AVR, true, BufferValue, BufferUnit, BufferTitle);
+		break;
+	case BM_HGH:
+		showunit=LKFormatValue(LK_HGND, true, BufferValue, BufferUnit, BufferTitle);
+		break;
+	case BM_AUX:
+		if (ISCAR)
+			showunit=LKFormatValue(LK_MAXALT, true, BufferValue, BufferUnit, BufferTitle); // QUI
+		else
+			showunit=LKFormatValue(LK_PRCCLIMB, true, BufferValue, BufferUnit, BufferTitle);
+		break;
+	case BM_TSK:
+		showunit=LKFormatValue(LK_FIN_GR, true, BufferValue, BufferUnit, BufferTitle);
+		break;
+	case BM_ALT:
+		showunit=LKFormatValue(LK_HOME_ARRIVAL, true, BufferValue, BufferUnit, BufferTitle); 
+		break;
+	case BM_SYS:
+		showunit=LKFormatValue(LK_EXTBATT1VOLT, true, BufferValue, BufferUnit, BufferTitle); // 100221
+		break;
+	case BM_CUS2:
+		index=GetInfoboxIndex(7,MapWindow::Mode::MODE_FLY_CRUISE);
+		showunit=LKFormatValue(index, true, BufferValue, BufferUnit, BufferTitle);
+		BufferTitle[7]='\0';
+		break;
+		
+	case BM_CUS3:
+		index=GetInfoboxIndex(7,MapWindow::Mode::MODE_FLY_FINAL_GLIDE);
+		showunit=LKFormatValue(index, true, BufferValue, BufferUnit, BufferTitle);
+		BufferTitle[7]='\0';
+		break;
+	case BM_CUS:
+		index=GetInfoboxType(7);
+		showunit=LKFormatValue(index, true, BufferValue, BufferUnit, BufferTitle);
+		BufferTitle[7]='\0';
+		break;
+
+	default:
+		showunit=LKFormatValue(LK_ERROR, true, BufferValue, BufferUnit, BufferTitle);
+		break;
+  }
+
+  if (ScreenLandscape|| userow2) {
+      #include "LKMW3include_navbox1.cpp"
+  } else {
+      #include "LKMW3include_navbox2.cpp"
+  }
+  LKWriteText(Surface, BufferTitle, rcx+NIBLSCALE(3), rcy, 0, WTMODE_NORMAL,WTALIGN_CENTER,barTextColor, false);
+
+
+  /*
+   *   EIGTH VALUE
+   */
+  if (bbsplitter<8) {
+      if (ScreenLandscape) goto EndOfNavboxes;
+      if (++userow2 >bbsplitter) goto EndOfNavboxes;
+      rcx=rc.left+(splitoffset2/2)+((userow2-1)*splitoffset2);
+  }
+  else {
+      rcx+=splitoffset;
+  }
+  showunit=true;
+  switch(BottomMode) {
+	case BM_TRM:
+		index=GetInfoboxIndex(8,MapWindow::Mode::MODE_FLY_CIRCLING);
+		showunit=LKFormatValue(index, true, BufferValue, BufferUnit, BufferTitle);
+		BufferTitle[7]='\0';
+		break;
+	case BM_CRU:
+		if (ISCAR)
+			showunit=LKFormatValue(LK_TIME_LOCAL, false, BufferValue, BufferUnit, BufferTitle); //QUI
+		else
+			showunit=LKFormatValue(LK_LD_CRUISE, true, BufferValue, BufferUnit, BufferTitle);
+		break;
+	case BM_HGH:
+		showunit=LKFormatValue(LK_AALTAGL, true, BufferValue, BufferUnit, BufferTitle);
+		break;
+	case BM_AUX:
+		showunit=LKFormatValue(LK_MAXHGAINED, true, BufferValue, BufferUnit, BufferTitle);
+		break;
+	case BM_TSK:
+		showunit=LKFormatValue(LK_SPEEDTASK_AVG, true, BufferValue, BufferUnit, BufferTitle);
+		break;
+	case BM_ALT:
+		showunit=LKFormatValue(LK_HOMERADIAL, true, BufferValue, BufferUnit, BufferTitle); // 100221
+		break;
+	case BM_SYS:
+		showunit=LKFormatValue(LK_EXTBATTBANK, true, BufferValue, BufferUnit, BufferTitle); // 100221
+		break;
+	case BM_CUS2:
+		index=GetInfoboxIndex(8,MapWindow::Mode::MODE_FLY_CRUISE);
+		showunit=LKFormatValue(index, true, BufferValue, BufferUnit, BufferTitle);
+		BufferTitle[7]='\0';
+		break;
+		
+	case BM_CUS3:
+		index=GetInfoboxIndex(8,MapWindow::Mode::MODE_FLY_FINAL_GLIDE);
+		showunit=LKFormatValue(index, true, BufferValue, BufferUnit, BufferTitle);
+		BufferTitle[7]='\0';
+		break;
+	case BM_CUS:
+		index=GetInfoboxType(8);
+		showunit=LKFormatValue(index, true, BufferValue, BufferUnit, BufferTitle);
+		BufferTitle[7]='\0';
+		break;
+
+	default:
+		showunit=LKFormatValue(LK_ERROR, true, BufferValue, BufferUnit, BufferTitle);
+		break;
+  }
+
+  if (ScreenLandscape|| userow2) {
+      #include "LKMW3include_navbox1.cpp"
+  } else {
+      #include "LKMW3include_navbox2.cpp"
+  }
+  LKWriteText(Surface, BufferTitle, rcx+NIBLSCALE(3), rcy, 0, WTMODE_NORMAL,WTALIGN_CENTER,barTextColor, false);
+
+  /*
+   *   NINTH VALUE
+   */
+  if (bbsplitter<9) {
+      if (ScreenLandscape) goto EndOfNavboxes;
+      if (++userow2 >bbsplitter) goto EndOfNavboxes;
+      rcx=rc.left+(splitoffset2/2)+((userow2-1)*splitoffset2);
+  }
+  else {
+      rcx+=splitoffset;
+  }
+  showunit=true;
+  showunit=LKFormatValue(LK_IAS, true, BufferValue, BufferUnit, BufferTitle);
+  if (ScreenLandscape|| userow2) {
+      #include "LKMW3include_navbox1.cpp"
+  } else {
+      #include "LKMW3include_navbox2.cpp"
+  }
+  LKWriteText(Surface, BufferTitle, rcx+NIBLSCALE(3), rcy, 0, WTMODE_NORMAL,WTALIGN_CENTER,barTextColor, false);
+
+  /*
+   *   TENTH VALUE
+   */
+  if (bbsplitter<9) {
+      if (ScreenLandscape) goto EndOfNavboxes;
+      if (++userow2 >bbsplitter) goto EndOfNavboxes;
+      rcx=rc.left+(splitoffset2/2)+((userow2-1)*splitoffset2);
+  }
+  else {
+      rcx+=splitoffset;
+  }
+  showunit=true;
+  showunit=LKFormatValue(LK_SPEED_MC, true, BufferValue, BufferUnit, BufferTitle);
+  if (ScreenLandscape|| userow2) {
+      #include "LKMW3include_navbox1.cpp"
+  } else {
+      #include "LKMW3include_navbox2.cpp"
+  }
   LKWriteText(Surface, BufferTitle, rcx+NIBLSCALE(3), rcy, 0, WTMODE_NORMAL,WTALIGN_CENTER,barTextColor, false);
 
   /*

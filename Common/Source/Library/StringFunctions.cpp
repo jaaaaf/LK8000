@@ -10,6 +10,10 @@
 #include <ctype.h>
 #include "utils/stl_utils.h"
 #include "utils/stringext.h"
+#include "Util/UTF8.hpp"
+#include "Poco/Latin1Encoding.h"
+#include "Poco/UTF8Encoding.h"
+#include "Poco/TextConverter.h"
 
 #ifdef __MINGW32__
 #ifndef max
@@ -51,9 +55,41 @@ void PExtractParameter(TCHAR *Source, TCHAR *Destination, int DesiredFieldNumber
     }
 }
 
+#ifndef UNICODE
+static void DetectCharsetAndFixString (char* String, charset& cs) {
 
+    // try to detect charset
+    if(cs == charset::unknown) {
+        // 1 - string start with BOM switch charset to utf8
+        if(String[0] == (char)0xEF && String[0] == (char)0xBB && String[0] == (char)0xBF) {
+            cs = charset::utf8;
+            strcpy(String, String+3); // skip BOM
+        }
+    }
+    if(cs == charset::unknown && !ValidateUTF8(String) ) {
+        // 2 - unknown and invalid utf8 char switch to latin1
+        cs = charset::latin1;
+    }
+    if(cs == charset::latin1) {
+        // from Latin1 (ISO-8859-1) To Utf8
+        std::tstring Latin1String(String);
+        std::tstring utf8String;
 
-BOOL ReadString(ZZIP_FILE *zFile, int Max, TCHAR *String)
+        Poco::Latin1Encoding Latin1Encoding;
+        Poco::UTF8Encoding utf8Encoding;
+
+        Poco::TextConverter converter(Latin1Encoding, utf8Encoding);
+        converter.convert(Latin1String, utf8String);
+        strcpy(String, utf8String.c_str());
+    }
+    if (!ValidateUTF8(String)) {
+        assert(false);
+        strcpy(String, "");
+    }
+}
+#endif
+
+BOOL ReadString(ZZIP_FILE *zFile, int Max, TCHAR *String, charset& cs)
 {
   char sTmp[READLINE_LENGTH+1];
   char FileBuffer[READLINE_LENGTH+1];
@@ -102,6 +138,8 @@ BOOL ReadString(ZZIP_FILE *zFile, int Max, TCHAR *String)
   mbstowcs(String, sTmp, strlen(sTmp)+1);
 #else
   strncpy(String, sTmp, strlen(sTmp)+1);
+
+  DetectCharsetAndFixString(String, cs);
 #endif
   return (dwTotalNumBytesRead>0);
 }
@@ -114,7 +152,8 @@ BOOL ReadString(ZZIP_FILE *zFile, int Max, TCHAR *String)
 // String: pointer to string buffer
 // return: True if at least one byte was read from file
 //         False if read error
-BOOL ReadStringX(FILE *fp, int Max, TCHAR *String){
+BOOL ReadStringX(FILE *fp, int Max, TCHAR *String, charset& cs){
+
   if (fp == NULL || Max < 1 || String == NULL) {
     if (String) {
       String[0]= '\0';
@@ -132,6 +171,10 @@ BOOL ReadStringX(FILE *fp, int Max, TCHAR *String){
       *pWC = '\0';
       pWC--;
     }
+    
+#ifndef UNICODE
+    DetectCharsetAndFixString(String, cs);
+#endif
 
     return (1);
   }
@@ -500,7 +543,7 @@ TCHAR* StringMallocParse(TCHAR* old_string) {
 
   new_string = (TCHAR *)malloc((_tcslen(newbuffer)+1)*sizeof(TCHAR));
   if (new_string==NULL) {
-	OutOfMemory(__FILE__,__LINE__);
+	OutOfMemory(_T(__FILE__),__LINE__);
 	return NULL;
   }
   _tcscpy(new_string, newbuffer);
@@ -509,7 +552,7 @@ TCHAR* StringMallocParse(TCHAR* old_string) {
 _notoken:
   new_string = (TCHAR *)malloc((_tcslen(buffer)+1)*sizeof(TCHAR));
   if (new_string==NULL) {
-	OutOfMemory(__FILE__,__LINE__);
+	OutOfMemory(_T(__FILE__),__LINE__);
 	return NULL;
   }
   _tcscpy(new_string, buffer);
@@ -549,19 +592,6 @@ int TextToLineOffsets(TCHAR* text, int* LineOffsets, int maxLines) {
   }
   return nTextLines;
 }
-
-
-
-bool MatchesExtension(const TCHAR *filename, const TCHAR* extension) {
-  const TCHAR *ptr = _tcsstr(filename, extension);
-  if (ptr != filename+_tcslen(filename)-_tcslen(extension)) {
-    return false;
-  } else {
-    return true;
-  }
-}
-
-
 
 /* 
  * Implementation of the _splitpath runtime library function with wide character strings
@@ -688,7 +718,7 @@ bool ReadULine(ZZIP_FILE* fp, TCHAR *unicode, int maxChars)
 //
 
 #if USELKASSERT
-void LK_tcsncpy_internal(TCHAR *dest, const TCHAR *src, const unsigned int numofchars, const unsigned int sizedest, const int line, const char *filename)
+void LK_tcsncpy_internal(TCHAR *dest, const TCHAR *src, const unsigned int numofchars, const unsigned int sizedest, const int line, const TCHAR *filename)
 #else
 void LK_tcsncpy_internal(TCHAR *dest, const TCHAR *src, const unsigned int numofchars)
 #endif
@@ -696,7 +726,7 @@ void LK_tcsncpy_internal(TCHAR *dest, const TCHAR *src, const unsigned int numof
 
   #if USELKASSERT
   if (dest == NULL || sizedest==0) {
-	StartupStore(_T("[ASSERT FAILURE (LK_tcsncpy dest)] in %S line %d, sizedest=%d\n"), filename, line,sizedest);
+	StartupStore(_T("[ASSERT FAILURE (LK_tcsncpy dest)] in %s line %d, sizedest=%d") NEWLINE, filename, line,sizedest);
 	return;
 	//LKASSERT(false); // does not work during startup!
   }
@@ -705,7 +735,7 @@ void LK_tcsncpy_internal(TCHAR *dest, const TCHAR *src, const unsigned int numof
   // Notice> we cannot check sizeof of a pointer, so anything with an address size instead of an array size 
   // will be excluded. Better than nothing.
   if (  sizedest>sizeof(dest) && numofchars >= sizedest ) {
-	StartupStore(_T("[ASSERT FAILURE (LK_tcsncpy dest)] in %S line %d dstsize=%d srcsize=%d\n"), filename, line,sizedest,numofchars);
+	StartupStore(_T("[ASSERT FAILURE (LK_tcsncpy dest)] in %s line %d dstsize=%d srcsize=%d") NEWLINE, filename, line,sizedest,numofchars);
 	_tcsncpy(dest,src,sizedest-1);
 	dest[sizedest-1] = '\0';
 	return;

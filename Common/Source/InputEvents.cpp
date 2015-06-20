@@ -31,6 +31,11 @@
 #include "CTaskFileHelper.h"
 #include "utils/stringext.h"
 #include "utils/openzip.h"
+#include "Asset.hpp"
+#include "Event/Event.h"
+#include "MapWindow.h"
+#include "Sound/Sound.h"
+#include "OS/RotateScreen.h"
 
 // Sensible maximums 
 #define MAX_MODE 100
@@ -82,6 +87,14 @@ static int GCE_Queue[MAX_GCE_QUEUE];
 #define MAX_NMEA_QUEUE 10
 static int NMEA_Queue[MAX_NMEA_QUEUE];
 
+
+// popup object details event queue data.
+typedef struct {
+    InputEvents::PopupType type;
+    int index;
+} PopupEvent_t;
+typedef std::deque<PopupEvent_t> PopupEventQueue_t;
+PopupEventQueue_t PopupEventQueue;
 
 // -----------------------------------------------------------------------
 // Initialisation and Defaults
@@ -160,7 +173,7 @@ void InputEvents::readFile() {
 	// Remember: DEFAULT_MENU existance is already been checked upon startup.
 
 	TCHAR xcipath[MAX_PATH];
-	LocalPath(xcipath,_T(LKD_SYSTEM));
+	SystemPath(xcipath,_T(LKD_SYSTEM));
 
 	switch(AircraftCategory) {
 		case umGlider:
@@ -388,53 +401,52 @@ void InputEvents::UnloadString(){
 int InputEvents::findKey(const TCHAR *data) {
 
   if (_tcscmp(data, TEXT("APP1")) == 0)
-    return VK_APP1;
+    return KEY_APP1;
   else if (_tcscmp(data, TEXT("APP2")) == 0)
-    return VK_APP2;
+    return KEY_APP2;
   else if (_tcscmp(data, TEXT("APP3")) == 0)
-    return VK_APP3;
+    return KEY_APP3;
   else if (_tcscmp(data, TEXT("APP4")) == 0)
-    return VK_APP4;
+    return KEY_APP4;
   else if (_tcscmp(data, TEXT("APP5")) == 0)
-    return VK_APP5;
+    return KEY_APP5;
   else if (_tcscmp(data, TEXT("APP6")) == 0)
-    return VK_APP6;
+    return KEY_APP6;
   else if (_tcscmp(data, TEXT("F1")) == 0)
-    return VK_F1;
+    return KEY_F1;
   else if (_tcscmp(data, TEXT("F2")) == 0)
-    return VK_F2;
+    return KEY_F2;
   else if (_tcscmp(data, TEXT("F3")) == 0)
-    return VK_F3;
+    return KEY_F3;
   else if (_tcscmp(data, TEXT("F4")) == 0)
-    return VK_F4;
+    return KEY_F4;
   else if (_tcscmp(data, TEXT("F5")) == 0)
-    return VK_F5;
+    return KEY_F5;
   else if (_tcscmp(data, TEXT("F6")) == 0)
-    return VK_F6;
+    return KEY_F6;
   else if (_tcscmp(data, TEXT("F7")) == 0)
-    return VK_F7;
+    return KEY_F7;
   else if (_tcscmp(data, TEXT("F8")) == 0)
-    return VK_F8;
+    return KEY_F8;
   else if (_tcscmp(data, TEXT("F9")) == 0)
-    return VK_F9;
+    return KEY_F9;
   else if (_tcscmp(data, TEXT("F10")) == 0)
-    return VK_F10;
+    return KEY_F10;
   else if (_tcscmp(data, TEXT("LEFT")) == 0)
-    return VK_LEFT;
+    return KEY_LEFT;
   else if (_tcscmp(data, TEXT("RIGHT")) == 0)
-    return VK_RIGHT;
+    return KEY_RIGHT;
   else if (_tcscmp(data, TEXT("UP")) == 0)
-    return VK_UP;
-  else if (_tcscmp(data, TEXT("DOWN")) == 0) {
-    return VK_DOWN;
-		}
+    return KEY_UP;
+  else if (_tcscmp(data, TEXT("DOWN")) == 0)
+    return KEY_DOWN;
   else if (_tcscmp(data, TEXT("RETURN")) == 0)
-    return VK_RETURN;
+    return KEY_RETURN;
   else if (_tcscmp(data, TEXT("ESCAPE")) == 0)
-    return VK_ESCAPE;
+    return KEY_ESCAPE;
 #ifdef LXMINIMAP
   else if (_tcscmp(data, TEXT("SPACE")) == 0)
-    return VK_SPACE;
+    return KEY_SPACE;
 #endif
 
   else if (_tcslen(data) == 1)
@@ -830,6 +842,11 @@ void InputEvents::DoQueuedEvents(void) {
   int NMEA_Queue_copy[MAX_NMEA_QUEUE];
   int i;
 
+  
+  CAirspaceManager::Instance().ProcessAirspaceDetailQueue();
+  
+  processPopupDetails_real();
+  
   if (blockqueue) return; 
   // prevent this being re-entered by gui thread while
   // still processing
@@ -889,6 +906,62 @@ bool InputEvents::processGlideComputer(int gce_id) {
   }
   UnlockEventQueue();
   return true; // ok.
+}
+
+void InputEvents::processPopupDetails(PopupType type, int index) {
+    LockEventQueue();
+    PopupEventQueue.push_back({type, index});
+    UnlockEventQueue();
+}
+
+// show details for each object queued (proccesed by MainThread inside InputsEvent::DoQueuedEvents())
+void InputEvents::processPopupDetails_real() {
+    LockEventQueue();
+    while(!PopupEventQueue.empty()) {
+        PopupEvent_t event = PopupEventQueue.front();
+        PopupEventQueue.pop_front(); // remove object event from fifo
+        UnlockEventQueue();
+
+        switch(event.type) {
+            case PopupWaypoint:
+                // Do not update CommonList and Nearest Waypoint in details mode, max 60s 
+                LockFlightData();
+        		LastDoCommon = GPS_INFO.Time + NEARESTONHOLD; //@ 101003
+                UnlockFlightData();
+
+                SelectedWaypoint = event.index;
+                PopupWaypointDetails();
+
+                LastDoNearest = LastDoCommon = 0; //@ 101003
+                break;
+            case PopupThermal:
+                // Do not update while in details mode, max 10m
+                LockFlightData();
+        		LastDoThermalH = GPS_INFO.Time + 600;
+                UnlockFlightData();
+                
+                dlgThermalDetails(event.index);
+                
+                LastDoThermalH=0;
+                break;
+            case PopupTraffic:
+             	// Do not update Traffic while in details mode, max 10m
+                LockFlightData();
+        		LastDoTraffic = GPS_INFO.Time + 600;
+                UnlockFlightData();
+                
+                dlgLKTrafficDetails(event.index);
+ 
+                LastDoTraffic = 0;
+                break;
+            default: 
+                LKASSERT(false);
+                break;
+        } 
+        
+        LockEventQueue();
+    }
+    UnlockEventQueue();
 }
 
 /*
@@ -1400,16 +1473,16 @@ void InputEvents::eventWaypointDetails(const TCHAR *misc) {
       return;
     }
     PopupWaypointDetails();
-  } else
+  } else {
     if (_tcscmp(misc, TEXT("select")) == 0) {
       int res = dlgWayPointSelect();
 
-      if (res != -1){
-	SelectedWaypoint = res;
-	PopupWaypointDetails();
-      };
-
+      if (res != -1) {
+	    SelectedWaypoint = res;
+	    PopupWaypointDetails();
+      }
     }
+  }
 }
 
 void InputEvents::eventTimeGates(const TCHAR *misc) {
@@ -1774,31 +1847,31 @@ void InputEvents::eventCalcWind(const TCHAR *misc) {
 	switch(resw) {
 		case WCALC_INVALID_SPEED:
 	// LKTOKEN  _@M369_ = "KEEP SPEED LONGER PLEASE" 
-			_stprintf(mbuf,gettext(TEXT("_@M369_")));
+			_tcscpy(mbuf,gettext(TEXT("_@M369_")));
 			reschedule=true;
 			break;
 		case WCALC_INVALID_TRACK:
 	// LKTOKEN  _@M367_ = "KEEP HEADING LONGER PLEASE" 
-			_stprintf(mbuf,gettext(TEXT("_@M367_")));
+			_tcscpy(mbuf,gettext(TEXT("_@M367_")));
 			reschedule=true;
 			break;
 		case WCALC_INVALID_ALL:
 	// LKTOKEN  _@M368_ = "KEEP SPEED AND HEADING LONGER PLEASE" 
-			_stprintf(mbuf,gettext(TEXT("_@M368_")));
+			_tcscpy(mbuf,gettext(TEXT("_@M368_")));
 			reschedule=true;
 			break;
 		case WCALC_INVALID_HEADING:
 	// LKTOKEN  _@M344_ = "INACCURATE HEADING OR TOO STRONG WIND" 
-			_stprintf(mbuf,gettext(TEXT("_@M344_")));
+			_tcscpy(mbuf,gettext(TEXT("_@M344_")));
 			break;
 		case WCALC_INVALID_IAS:
 	// LKTOKEN  _@M366_ = "KEEP AIRSPEED CONSTANT LONGER PLEASE" 
-			_stprintf(mbuf,gettext(TEXT("_@M366_")));
+			_tcscpy(mbuf,gettext(TEXT("_@M366_")));
 			reschedule=true;
 			break;
 		case WCALC_INVALID_NOIAS:
 	// LKTOKEN  _@M345_ = "INVALID AIRSPEED" 
-			_stprintf(mbuf,gettext(TEXT("_@M345_")));
+			_tcscpy(mbuf,gettext(TEXT("_@M345_")));
 			break;
 		default:
 			_stprintf(mbuf,_T("INVALID DATA CALCULATING WIND %d"), resw); 
@@ -2063,8 +2136,8 @@ void InputEvents::eventService(const TCHAR *misc) {
   }
 
   if (_tcscmp(misc, TEXT("TERRCOL")) == 0) {
-	if (TerrainRamp+1>13)
-		TerrainRamp=0;  // 13 = NUMRAMPS -1
+	if (TerrainRamp+1>14)
+		TerrainRamp=0;  // 14 = NUMRAMPS -1
 	else
 		++TerrainRamp;
 	MapWindow::RefreshMap();
@@ -2072,7 +2145,7 @@ void InputEvents::eventService(const TCHAR *misc) {
   }
   if (_tcscmp(misc, TEXT("TERRCOLBACK")) == 0) {
 	if (TerrainRamp-1<0)
-		TerrainRamp=13;  
+		TerrainRamp=14;  
 	else
 		--TerrainRamp;
 	MapWindow::RefreshMap();
@@ -2099,58 +2172,55 @@ void InputEvents::eventService(const TCHAR *misc) {
 	return;
   }
 
-#if (WINDOWSPC>0)
-  if (_tcscmp(misc, TEXT("SS320x240")) == 0) {
-	SCREENWIDTH=320;
-	SCREENHEIGHT=240;
-	return;
+  if(!IsEmbedded()) {
+    if (_tcscmp(misc, TEXT("SS320x240")) == 0) {
+      RECT w=WindowResize(320,240);
+      MainWindow.Resize(w.right-w.left, w.bottom-w.top);
+      return;
+    }
+    if (_tcscmp(misc, TEXT("SS480x272")) == 0) {
+      RECT w=WindowResize(480,272);
+      MainWindow.Resize(w.right-w.left, w.bottom-w.top);
+      return;
+    }
+    if (_tcscmp(misc, TEXT("SS640x480")) == 0) {
+      RECT w=WindowResize(640,480);
+      MainWindow.Resize(w.right-w.left, w.bottom-w.top);
+      return;
+    }
+    if (_tcscmp(misc, TEXT("SS800x480")) == 0) {
+      RECT w=WindowResize(800,480);
+      MainWindow.Resize(w.right-w.left, w.bottom-w.top);
+      return;
+    }
+    if (_tcscmp(misc, TEXT("SS896x672")) == 0) {
+      RECT w=WindowResize(896,672);
+      MainWindow.Resize(w.right-w.left, w.bottom-w.top);
+      return;
+    }
+    if (_tcscmp(misc, TEXT("SS800x600")) == 0) {
+      RECT w=WindowResize(800,600);
+      MainWindow.Resize(w.right-w.left, w.bottom-w.top);
+      return;
+    }
+    if (_tcscmp(misc, TEXT("SSINVERT")) == 0) {
+        const PixelRect Rect(MainWindow.GetClientRect());
+      if (Rect.GetSize().cx==896) return;
+      RECT w=WindowResize(Rect.GetSize().cy, Rect.GetSize().cx);
+      MainWindow.Resize(w.right-w.left, w.bottom-w.top);
+      return;
+    }
+  } else {
+    if (_tcscmp(misc, TEXT("SSINV90")) == 0) {
+      RotateScreen(90);
+      return;
+    }
+    if (_tcscmp(misc, TEXT("SSINV180")) == 0) {
+      RotateScreen(180);
+      return;
+    }
   }
-  if (_tcscmp(misc, TEXT("SS480x272")) == 0) {
-	SCREENWIDTH=480;
-	SCREENHEIGHT=272;
-	return;
-  }
-  if (_tcscmp(misc, TEXT("SS640x480")) == 0) {
-	SCREENWIDTH=640;
-	SCREENHEIGHT=480;
-	return;
-  }
-  if (_tcscmp(misc, TEXT("SS800x480")) == 0) {
-	SCREENWIDTH=800;
-	SCREENHEIGHT=480;
-	return;
-  }
-  if (_tcscmp(misc, TEXT("SS896x672")) == 0) {
-	SCREENWIDTH=896;
-	SCREENHEIGHT=672;
-	return;
-  }
-#endif
-extern bool RotateScreen(short angle);
-  if (_tcscmp(misc, TEXT("SSINVERT")) == 0) {
-	#if (WINDOWSPC>0)
-	if (SCREENWIDTH==896) return;
-	int y=SCREENHEIGHT;
-	SCREENHEIGHT=SCREENWIDTH;
-	SCREENWIDTH=y;
-	#endif
-	return;
-  }
-  if (_tcscmp(misc, TEXT("SSINV90")) == 0) {
-	#if (WINDOWSPC>0)
-	#else
-	RotateScreen(90);
-	#endif
-	return;
-  }
-  if (_tcscmp(misc, TEXT("SSINV180")) == 0) {
-	#if (WINDOWSPC>0)
-	#else
-	RotateScreen(180);
-	#endif
-	return;
-  }
-
+  
   if (_tcscmp(misc, TEXT("SAVESYS")) == 0) {
 	dlgProfilesShowModal(0);
 	return;
@@ -2216,6 +2286,11 @@ extern bool RotateScreen(short angle);
   if (_tcscmp(misc, TEXT("SONAR")) == 0) {
 	CustomKeyHandler(ckSonarToggle+1000); // passthrough mode
 	return;
+  }
+
+  if (_tcscmp(misc, TEXT("CREDITS")) == 0) {
+      dlgChecklistShowModal(3); // 3 for Credits
+      return;
   }
 
   if(_tcscmp(misc, TEXT("TASKREVERSE")) == 0) {
@@ -2360,11 +2435,7 @@ void InputEvents::eventAutoLogger(const TCHAR *misc) {
 void InputEvents::eventLogger(const TCHAR *misc) {
 
 #if TESTBENCH
-  TCHAR szMessage[MAX_PATH+1] = TEXT("\0");
-  LK_tcsncpy(szMessage, TEXT(". eventLogger: "),MAX_PATH);
-  _tcsncat(szMessage, misc,MAX_PATH);
-  _tcsncat(szMessage,TEXT("\r\n"),MAX_PATH);
-  StartupStore(szMessage);
+  StartupStore(_T(". eventLogger: %s") NEWLINE, misc );
 #endif
 
   if (_tcscmp(misc, TEXT("start ask")) == 0) {
@@ -2442,23 +2513,33 @@ void InputEvents::eventNearestAirspaceDetails(const TCHAR *misc) {
 
 }
 
+extern POINT startScreen;
 // NearestWaypointDetails
 // Displays the waypoint details dialog
-//  aircraft: the waypoint nearest the aircraft
-//  pan: the waypoint nearest to the pan cursor
+//  aircraft:   the waypoint nearest the aircraft
+//  pan:        the waypoint nearest to the pan cursor
+//  screen :    the waypoint nearest to "long click" event on MapSpace ( #startScreen global variable )
 void InputEvents::eventNearestWaypointDetails(const TCHAR *misc) {
-  if (_tcscmp(misc, TEXT("aircraft")) == 0) {
-    MapWindow::Event_NearestWaypointDetails(GPS_INFO.Longitude,
-					    GPS_INFO.Latitude,
-					    500*MapWindow::zoom.RealScale(),
-					    false); 
-  }
-  if (_tcscmp(misc, TEXT("pan")) == 0) {
-    MapWindow::Event_NearestWaypointDetails(GPS_INFO.Longitude,
-					    GPS_INFO.Latitude,
-					    500*MapWindow::zoom.RealScale(),
-					    true); 
-  }
+    bool bOK = false;
+    double lon = GPS_INFO.Longitude;
+    double lat = GPS_INFO.Latitude;
+    if (_tcscmp(misc, TEXT("aircraft")) == 0) {
+        bOK = true;
+    }
+    if (_tcscmp(misc, TEXT("pan")) == 0) {
+        bOK = true;
+        if((MapWindow::mode.Is(MapWindow::Mode::MODE_PAN) || MapWindow::mode.Is(MapWindow::Mode::MODE_TARGET_PAN))) {
+            lon = MapWindow::GetPanLongitude();
+            lat = MapWindow::GetPanLatitude();
+        }
+    }
+    if (_tcscmp(misc, TEXT("screen")) == 0) {
+        bOK = true;
+        MapWindow::SideviewScreen2LatLon(startScreen.x, startScreen.y, lon, lat);
+    }
+    if(bOK) {
+        MapWindow::Event_NearestWaypointDetails(lon, lat); 
+    }
 }
 
 // Null
@@ -2531,7 +2612,7 @@ void InputEvents::eventProfileLoad(const TCHAR *misc) {
 			mbYesNo) == IdNo) {
 			return;
 		}
-		LocalPath(buffer,_T(LKD_SYSTEM)); // 100223
+		SystemPath(buffer,_T(LKD_SYSTEM)); // 100223
 		_tcscat(buffer,_T(DIRSEP));
 		_tcscat(buffer,_T("FACTORYPRF"));
 		factory=true;
@@ -2816,18 +2897,27 @@ double step=0;
 	if (GPS_INFO.Speed <0) GPS_INFO.Speed=0;
 	return;
   }
-#if (WINDOWSPC>0)
-  // key action from PC is always fine-tuned
-  if (_tcscmp(misc, TEXT("kup")) == 0){
-	GPS_INFO.Speed += step;
-	return;
+  if(HasKeyboard()) {
+    // key action from PC is always fine-tuned
+    if (_tcscmp(misc, TEXT("kup")) == 0){
+      GPS_INFO.Speed += step;
+      return;
+    }
+    if (_tcscmp(misc, TEXT("kdown")) == 0){
+      GPS_INFO.Speed -= step;
+      if (GPS_INFO.Speed <0) GPS_INFO.Speed=0;
+      return;
+    }
   }
-  if (_tcscmp(misc, TEXT("kdown")) == 0){
-	GPS_INFO.Speed -= step;
-	if (GPS_INFO.Speed <0) GPS_INFO.Speed=0;
-	return;
+}
+
+void InputEvents::eventChangeNettoVario(const TCHAR *misc) {
+  if (_tcscmp(misc, TEXT("up")) == 0){
+	SimNettoVario+=0.1;
   }
-#endif
+  if (_tcscmp(misc, TEXT("down")) == 0){
+	SimNettoVario-=0.1;
+  }
 }
 
 
@@ -3628,4 +3718,8 @@ void InputEvents::eventModeType(const TCHAR *misc) {
         PreviousModeType();
     }
     MapWindow::RefreshMap();
+}
+
+void InputEvents::eventShowMultiselect(const TCHAR*) {
+    dlgMultiSelectListShowModal();
 }

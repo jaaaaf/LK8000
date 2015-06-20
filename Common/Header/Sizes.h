@@ -75,16 +75,11 @@
 #define MAX_LOADSTRING 100
 #define MAX_ASSETIDSTRING	10
 
-#if LONGSNAIL
 #define LONGTRAILSIZE 600 
-#define TRAILSIZE 1000
-#define TRAILSHRINK 5
-#else
-#define TRAILSIZE 1000
 // 1000 points at 3.6 seconds average = one hour
-#define TRAILSHRINK 5
+#define TRAILSIZE 1000
 // short trail is 10 minutes approx
-#endif
+#define TRAILSHRINK 5
 
 
 #define GLOBALFONT "Tahoma"
@@ -115,21 +110,6 @@
 
 #define MENUBUTTONWIDTHRATIO 0.6
 
-
-// size of terrain cache
-#if (WINDOWSPC>0) 
-#define MAXTERRAINCACHE 4096 
-#else
-#define MAXTERRAINCACHE 4096 
-#endif
-
-// stepsize of pixel grid, should be multiple of 2
-#if (WINDOWSPC>0)
-#define DTQUANT 6
-#else
-#define DTQUANT 6
-#endif
-
 // ratio of smoothed bitmap size to pixel grid
 #define OVS 2
 
@@ -157,8 +137,12 @@
 // invalid value for terrain, we can store inside terrain altitude being unsigned short
 #define TERRAIN_INVALID 32767
 
-#define NUMAIRSPACECOLORS 16
+#define NUMAIRSPACECOLORS 17
+#ifdef HAVE_HATCHED_BRUSH
 #define NUMAIRSPACEBRUSHES 8
+#else
+#define NUMAIRSPACEBRUSHES NUMAIRSPACECOLORS 
+#endif
 
 #define NUMBUTTONLABELS 16
 

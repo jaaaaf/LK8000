@@ -27,6 +27,7 @@ Copyright_License {
 #include "Optimised.hpp"
 #include "RasterCanvas.hpp"
 #include "Screen/Custom/Cache.hpp"
+#include "Util/StringUtil.hpp"
 
 #ifdef __ARM_NEON__
 #include "NEON.hpp"
@@ -74,8 +75,8 @@ Canvas::DrawOutlineRectangle(int left, int top, int right, int bottom,
   SDLRasterCanvas canvas(buffer);
   const int x1 = left+pen.GetWidth()/2;
   const int y1 = top+pen.GetWidth()/2;
-  const int x2 = right-1-pen.GetWidth()/2;
-  const int y2 = bottom-1-pen.GetWidth()/2;
+  const int x2 = right-pen.GetWidth()/2;
+  const int y2 = bottom-pen.GetWidth()/2;
   
   canvas.DrawThickLine(x1, y1, x2, y1, pen.GetWidth(), canvas.Import(pen.GetColor()), pen.GetMask());
   canvas.DrawThickLine(x1, y2, x2, y2, pen.GetWidth(), canvas.Import(pen.GetColor()), pen.GetMask());
@@ -91,8 +92,12 @@ Canvas::DrawFilledRectangle(int left, int top, int right, int bottom,
     return;
 
   SDLRasterCanvas canvas(buffer);
-  canvas.FillRectangle(left, top, right, bottom,
-                       canvas.Import(color));
+  const auto raster_color = canvas.Import(color);
+  if (color.IsOpaque())
+    canvas.FillRectangle(left, top, right, bottom, raster_color);
+  else
+    canvas.FillRectangle(left, top, right, bottom, raster_color, 
+                         AlphaPixelOperations<SDLPixelTraits>(color.Alpha()));
 }
 
 void
@@ -272,20 +277,35 @@ RenderText(const Font *font, const TCHAR *text)
 #endif
 }
 
+
 void
-Canvas::DrawText(int x, int y, const TCHAR *text)
+Canvas::DrawClippedText(int x, int y, unsigned max_width, const TCHAR *text)
 {
-  assert(text != nullptr);
+  static TCHAR text_buffer[256];
+  assert(text != NULL);
 #ifndef UNICODE
   assert(ValidateUTF8(text));
 #endif
-
-  auto s = RenderText(font, text);
+  const TCHAR *clipped_text = text;
+  unsigned width = Canvas::CalcTextWidth(text);
+  if (width > max_width) {
+    // that wrong, does not handle multibyte char.
+    unsigned new_size;
+    fixed target_percent = fixed(max_width) / fixed(width);
+    new_size = fixed(StringLength(text)) * target_percent;
+    CopyString(text_buffer, text, std::min(new_size, 256u));
+    clipped_text = text_buffer;
+  }
+  
+#ifndef UNICODE
+  assert(ValidateUTF8(clipped_text));
+#endif
+  
+  auto s = RenderText(font, clipped_text);
   if (s.data == nullptr)
     return;
 
   SDLRasterCanvas canvas(buffer);
-
   if (background_mode == OPAQUE) {
     OpaqueAlphaPixelOperations<SDLPixelTraits, GreyscalePixelTraits>
       opaque(canvas.Import(background_color), canvas.Import(text_color));
@@ -304,6 +324,49 @@ Canvas::DrawText(int x, int y, const TCHAR *text)
 }
 
 void
+Canvas::DrawText(int x, int y, const TCHAR *text)
+{
+  assert(text != nullptr);
+#ifndef UNICODE
+  assert(ValidateUTF8(text));
+#endif
+
+#ifdef ENABLE_OPENGL
+  /*
+   * RenderText return buffer owned by TextCache, this can be delete by GUI Thread
+   *  lock is need for avoid to used alredy deleted buffer.
+   */
+  TextCache::Lock();
+#endif
+  
+  auto s = RenderText(font, text);
+  if (s.data != nullptr) {
+
+    SDLRasterCanvas canvas(buffer);
+
+    if (background_mode == OPAQUE) {
+      OpaqueAlphaPixelOperations<SDLPixelTraits, GreyscalePixelTraits>
+        opaque(canvas.Import(background_color), canvas.Import(text_color));
+      canvas.CopyRectangle<decltype(opaque), GreyscalePixelTraits>
+        (x, y, s.width, s.height,
+         GreyscalePixelTraits::const_pointer_type(s.data),
+         s.pitch, opaque);
+    } else {
+      ColoredAlphaPixelOperations<SDLPixelTraits, GreyscalePixelTraits>
+        transparent(canvas.Import(text_color));
+      canvas.CopyRectangle<decltype(transparent), GreyscalePixelTraits>
+        (x, y, s.width, s.height,
+         GreyscalePixelTraits::const_pointer_type(s.data),
+         s.pitch, transparent);
+    }
+  }
+
+#ifdef ENABLE_OPENGL  
+  TextCache::Unlock();
+#endif
+}
+
+void
 Canvas::DrawTransparentText(int x, int y, const TCHAR *text)
 {
   assert(text != nullptr);
@@ -311,17 +374,29 @@ Canvas::DrawTransparentText(int x, int y, const TCHAR *text)
   assert(ValidateUTF8(text));
 #endif
 
+#ifdef ENABLE_OPENGL
+  /*
+   * RenderText return buffer owned by TextCache, this can be delete by GUI Thread
+   *  lock is need for avoid to used alredy deleted buffer.
+   */
+  TextCache::Lock();
+#endif
+  
   auto s = RenderText(font, text);
-  if (s.data == nullptr)
-    return;
+  if (s.data != nullptr) {
 
-  SDLRasterCanvas canvas(buffer);
-  ColoredAlphaPixelOperations<SDLPixelTraits, GreyscalePixelTraits>
-    transparent(canvas.Import(text_color));
-  canvas.CopyRectangle<decltype(transparent), GreyscalePixelTraits>
-    (x, y, s.width, s.height,
-     GreyscalePixelTraits::const_pointer_type(s.data),
-     s.pitch, transparent);
+    SDLRasterCanvas canvas(buffer);
+    ColoredAlphaPixelOperations<SDLPixelTraits, GreyscalePixelTraits>
+      transparent(canvas.Import(text_color));
+    canvas.CopyRectangle<decltype(transparent), GreyscalePixelTraits>
+      (x, y, s.width, s.height,
+       GreyscalePixelTraits::const_pointer_type(s.data),
+       s.pitch, transparent);
+  }
+  
+#ifdef ENABLE_OPENGL  
+  TextCache::Unlock();
+#endif  
 }
 
 static bool
@@ -436,7 +511,7 @@ Canvas::StretchOr(int dest_x, int dest_y,
   ConstImageBuffer srcImg = src.GetNative();  
   
   SDLRasterCanvas canvas(buffer);
-  BitOrPixelOperations<SDLPixelTraits> operations;
+  PortableBitOrPixelOperations<SDLPixelTraits> operations;
   
   canvas.ScaleRectangle<decltype(operations), SDLPixelTraits>(dest_x, dest_y, dest_width, dest_height,
                        srcImg.At(src_x, src_y), srcImg.pitch, src_width, src_height,

@@ -18,8 +18,13 @@
 #include "Logger.h"
 #include "Dialogs.h"
 #include "Screen/LKBitmapSurface.h"
+#include "Event/Event.h"
+#include "Asset.hpp"
+#include "Sound/Sound.h"
+#include "TunedParameter.h"
 
 #define KEYDEBOUNCE 100
+extern int ProcessSubScreenVirtualKey(int X, int Y, long keytime, short vkmode);
 
 // #define DEBUG_VIRTUALKEYS
 // #define DEBUG_MAPINPUT
@@ -34,9 +39,7 @@ bool OnFastPanning=false;
 MapWindow::Zoom MapWindow::zoom;
 MapWindow::Mode MapWindow::mode;
 
-#ifdef HAVE_HATCHED_BRUSH
 LKBrush  MapWindow::hAboveTerrainBrush;
-#endif
 
 int MapWindow::SnailWidthScale = 16;
 int MapWindow::ScaleListCount = 0;
@@ -48,16 +51,14 @@ POINT MapWindow::Orig_Screen;
 RECT MapWindow::MapRect; // the entire screen area in use
 RECT MapWindow::DrawRect; // the portion of MapRect for drawing terrain, topology etc. (the map)
 
-LKWindowSurface MapWindow::TempSurface;
+LKWindowSurface MapWindow::WindowSurface;
 
-LKBitmapSurface MapWindow::ScreenSurface;
+LKBitmapSurface MapWindow::BackBufferSurface;
 
-LKBitmapSurface MapWindow::hdcDrawWindow;
+LKBitmapSurface MapWindow::DrawSurface;
   
-LKBitmapSurface MapWindow::hDCTempTask;
-LKBitmapSurface MapWindow::hdcTempTerrainAbove;
+LKBitmapSurface MapWindow::TempSurface;
 
-LKBitmapSurface MapWindow::hdcTempAsp;
 LKMaskBitmapSurface MapWindow::hdcMask;
 LKBitmapSurface MapWindow::hdcbuffer;
 
@@ -90,20 +91,20 @@ POINT MapWindow::Groundline[NUMTERRAINSWEEPS+1];
 POINT MapWindow::Groundline2[NUMTERRAINSWEEPS+1];
 #endif
 
-// 16 is number of airspace types
-int      MapWindow::iAirspaceBrush[AIRSPACECLASSCOUNT] = {2,0,0,0,3,3,3,3,0,3,2,3,3,3,3,3};
-int      MapWindow::iAirspaceColour[AIRSPACECLASSCOUNT] = {5,0,0,10,0,0,10,2,0,10,9,3,7,7,7,10};
-int      MapWindow::iAirspaceMode[AIRSPACECLASSCOUNT] = {0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0};
-
+// 17 is number of airspace types
+int      MapWindow::iAirspaceColour[AIRSPACECLASSCOUNT] = {5,0,0,10,0,0,10,2,0,10,9,3,7,7,7,10,10};
+int      MapWindow::iAirspaceMode[AIRSPACECLASSCOUNT] = {0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0};
+#ifdef HAVE_HATCHED_BRUSH
+int      MapWindow::iAirspaceBrush[AIRSPACECLASSCOUNT] = {2,0,0,0,3,3,3,3,0,3,2,3,3,3,3,3,3};
+#endif
+    
 LKPen MapWindow::hAirspacePens[AIRSPACECLASSCOUNT];
 LKPen MapWindow::hBigAirspacePens[AIRSPACECLASSCOUNT];
 LKPen MapWindow::hAirspaceBorderPen;
 
 BrushReference MapWindow::hInvBackgroundBrush[LKMAXBACKGROUNDS];
 
-#ifdef HAVE_HATCHED_BRUSH          
 LKBrush  MapWindow::hAirspaceBrushes[NUMAIRSPACEBRUSHES];
-#endif
 
 LKColor MapWindow::Colours[NUMAIRSPACECOLORS] =
   {LKColor(0xFF,0x00,0x00), LKColor(0x00,0xFF,0x00),
@@ -113,7 +114,9 @@ LKColor MapWindow::Colours[NUMAIRSPACECOLORS] =
    LKColor(0x00,0x00,0x7F), LKColor(0x7F,0x7F,0x00),
    LKColor(0x7F,0x00,0x7F), LKColor(0x00,0x7F,0x7F),
    LKColor(0xFF,0xFF,0xFF), LKColor(0xC0,0xC0,0xC0),
-   LKColor(0x7F,0x7F,0x7F), LKColor(0x00,0x00,0x00)};
+   LKColor(0x7F,0x7F,0x7F), LKColor(0x00,0x00,0x00),
+   LKColor(0x7F,0x7F,0x7F)
+};
 
 
 PenReference MapWindow::hpAircraft;
@@ -132,6 +135,7 @@ bool MapWindow::MapDirty = true;
 bool PanRefreshed=false;
 
 bool MapWindow::ForceVisibilityScan = false;
+bool MapWindow::ThermalBarDrawn = false;
 
 NMEA_INFO MapWindow::DrawInfo;
 DERIVED_INFO MapWindow::DerivedDrawInfo;
@@ -171,68 +175,61 @@ POINT targetScreen;
 
 
 void MapWindow::_OnSize(int cx, int cy) {
-    if (!MapWindow::IsDisplayRunning()) {
-        // this is Used for check Thread_Draw don't use surface object.
-        Poco::FastMutex::ScopedLock Lock(Surface_Mutex);
+    // this is Used for check Thread_Draw don't use surface object.
+    Poco::FastMutex::ScopedLock Lock(Surface_Mutex);
 
-        ScreenSurface.Resize(cx, cy);
-        hdcDrawWindow.Resize(cx, cy);
-        hDCTempTask.Resize(cx, cy);
-        hdcTempTerrainAbove.Resize(cx, cy);
-        hdcTempAsp.Resize(cx, cy);
-        hdcbuffer.Resize(cx, cy);
-        hdcMask.Resize(cx, cy);
-    }
-    UpdateActiveScreenZone(cx, cy);
+    BackBufferSurface.Resize(cx, cy);
+    DrawSurface.Resize(cx, cy);
+    TempSurface.Resize(cx, cy);
+    hdcbuffer.Resize(cx, cy);
+    hdcMask.Resize(cx, cy);
+
 }
 
-void MapWindow::UpdateActiveScreenZone(int cx, int cy) {
-    Y_BottomBar = cy - BottomSize;
+void MapWindow::UpdateActiveScreenZone(RECT rc) {
 
-    P_Doubleclick_bottomright.x = cx - BottomSize - NIBLSCALE(15);
-    P_Doubleclick_bottomright.y = cy - BottomSize - NIBLSCALE(15);
+    #if TESTBENCH
+    StartupStore(_T("... ** UpdateActiveScreenZone %d,%d,%d,%d\n"),rc.left,rc.top,rc.right,rc.bottom);
+    #endif
 
-    // These were all using MapRect
+    Y_BottomBar = rc.bottom - BottomSize;
+    P_Doubleclick_bottomright.x = rc.right - BottomSize - NIBLSCALE(15);
+    P_Doubleclick_bottomright.y = rc.bottom - BottomSize - NIBLSCALE(15);
     P_MenuIcon_DrawBottom.y = Y_BottomBar - 14;
-    P_MenuIcon_noDrawBottom.y = cy - AircraftMenuSize;
-    P_MenuIcon_DrawBottom.x = cx - AircraftMenuSize;
+    P_MenuIcon_noDrawBottom.y = rc.bottom - AircraftMenuSize;
+    P_MenuIcon_DrawBottom.x = rc.right - AircraftMenuSize;
     P_MenuIcon_noDrawBottom.x = P_MenuIcon_DrawBottom.x;
     P_UngestureLeft.x = CompassMenuSize;
     P_UngestureLeft.y = CompassMenuSize;
-    P_UngestureRight.x = cx - CompassMenuSize;
+    P_UngestureRight.x = rc.right - CompassMenuSize;
     P_UngestureRight.y = CompassMenuSize;
     Y_Up = Y_BottomBar / 2;
     Y_Down = Y_BottomBar - Y_Up;
-    X_Left = (cx / 2) - (cx / 3);
-    X_Right = (cx / 2) + (cx / 3);    
+    X_Left = (rc.right+rc.left)/2 - (rc.right-rc.left)/3;
+    X_Right = (rc.right+rc.left)/2 + (rc.right-rc.left)/3;    
+
 }
 
 void MapWindow::_OnCreate(Window& Wnd, int cx, int cy) {
-    TempSurface.Create(Wnd);
-    ScreenSurface.Create(TempSurface, cx, cy);
-    hdcDrawWindow.Create(TempSurface, cx, cy);
-    hDCTempTask.Create(TempSurface, cx, cy);
-    hdcTempTerrainAbove.Create(TempSurface, cx, cy);
-    hdcTempAsp.Create(TempSurface, cx, cy);
-    hdcbuffer.Create(TempSurface, cx, cy);
-    hdcMask.Create(TempSurface, cx, cy);
+    WindowSurface.Create(Wnd);
+    BackBufferSurface.Create(WindowSurface, cx, cy);
+    DrawSurface.Create(WindowSurface, cx, cy);
+    TempSurface.Create(WindowSurface, cx, cy);
+    hdcbuffer.Create(WindowSurface, cx, cy);
+    hdcMask.Create(WindowSurface, cx, cy);
 
-    UpdateActiveScreenZone(cx, cy);
-    
     // Signal that draw thread can run now
     Initialised = TRUE;
 }
 
 void MapWindow::_OnDestroy() {
-    ScreenSurface.Release();
-    hdcDrawWindow.Release();
-    hDCTempTask.Release();
-    hdcTempTerrainAbove.Release();
-    hdcTempAsp.Release();
+    BackBufferSurface.Release();
+    DrawSurface.Release();
+    TempSurface.Release();
     hdcbuffer.Release();
     hdcMask.Release();
 
-    TempSurface.Release();
+    WindowSurface.Release();
 }
 
 /*
@@ -283,7 +280,7 @@ void MapWindow::_OnDragMove(const POINT& Pos) {
                 // This was previously not working in v3 because ThreadCalculations was forcing MapDirty 
                 // in the background each second, and we were loosing control!
                 if (tsDownTime.isElapsed(
-                        Poco::Timespan(0, 1000 * FASTPANNING).totalMicroseconds())) {
+                    Poco::Timespan(0, 1000 * TunedParameter_Fastpanning() ).totalMicroseconds())) {
                     tsDownTime.update();
                     OnFastPanning = false;
                     RefreshMap();
@@ -431,6 +428,12 @@ void MapWindow::_OnLButtonUp(const POINT& Pos) {
         tsUpTime.update();
         DownUpInterval = tsUpTime - tsDownTime;
         tsDownTime = 0; // do it once forever
+
+        // LK v6: check we are not out of MapRect bounds.
+        if (Pos.x<MapWindow::MapRect.left||Pos.x>MapWindow::MapRect.right||Pos.y<MapWindow::MapRect.top||Pos.y>MapWindow::MapRect.bottom) {
+            ProcessSubScreenVirtualKey(Pos.x, Pos.y, DownUpInterval.totalMilliseconds(), LKGESTURE_NONE);
+            return;
+        }
 
         int gestDir = LKGESTURE_NONE;
         int gestDist = -1;
@@ -717,7 +720,7 @@ void MapWindow::_OnLButtonUp(const POINT& Pos) {
             //
             double newbearing;
             double oldbearing = DrawInfo.TrackBearing;
-            double minspeed = 1.1 * GlidePolar::Vminsink;
+            double minspeed = 1.1 * GlidePolar::Vminsink();
             DistanceBearing(Ystart, Xstart, Ylat, Xlat, NULL, &newbearing);
             if ((fabs(AngleLimit180(newbearing - oldbearing)) < 30) || (DrawInfo.Speed < minspeed)) {
                 // sink we shall be sinking, lets raise the altitude when using old simulator interface
@@ -789,112 +792,126 @@ void MapWindow::_OnLButtonUp(const POINT& Pos) {
     }
 }
 
+extern void SimFastForward(void);
+
+// return true if Shift key is down
+static bool GetShiftKeyState() {
+
+#ifdef ENABLE_SDL
+#if SDL_MAJOR_VERSION >= 2
+    const Uint8 *keystate = ::SDL_GetKeyboardState(NULL);
+    return keystate[SDL_SCANCODE_LSHIFT] || keystate[SDL_SCANCODE_RSHIFT];
+#else
+    const Uint8 *keystate = ::SDL_GetKeyState(NULL);
+    return (keystate[SDLK_LSHIFT] || keystate[SDLK_RSHIFT]);
+#endif
+#elif defined(WIN32)
+    short nVirtKey = GetKeyState(VK_SHIFT); 
+    return (nVirtKey & 0x8000);
+#else
+    return false;
+#endif
+}
+
+
+
 void MapWindow::_OnKeyDown(unsigned KeyCode) {
     if (!Debounce(50)) return;
 
     //
     // Special SIM mode keys for PC
     //
-#if (WINDOWSPC>0)
-    extern void SimFastForward(void);
-    if (SIMMODE && IsMultiMapShared() && (!ReplayLogger::IsEnabled())) {
-        short nn;
-        switch (KeyCode) {
-            case 0x21: // VK_PRIOR PAGE UP
-                nn = GetKeyState(VK_SHIFT);
-                if (nn < 0) {
-                    if (Units::GetUserAltitudeUnit() == unFeet)
-                        GPS_INFO.Altitude += 45.71999999 * 10;
-                    else
-                        GPS_INFO.Altitude += 10 * 10;
-                } else {
-                    if (Units::GetUserAltitudeUnit() == unFeet)
-                        GPS_INFO.Altitude += 45.71999999;
-                    else
-                        GPS_INFO.Altitude += 10;
-                }
-                TriggerGPSUpdate();
-                return;
-            case 0x22: // VK_NEXT PAGE DOWN
-                nn = GetKeyState(VK_SHIFT);
-                if (nn < 0) {
-                    if (Units::GetUserAltitudeUnit() == unFeet)
-                        GPS_INFO.Altitude -= 45.71999999 * 10;
-                    else
-                        GPS_INFO.Altitude -= 10 * 10;
-                } else {
-                    if (Units::GetUserAltitudeUnit() == unFeet)
-                        GPS_INFO.Altitude -= 45.71999999;
-                    else
-                        GPS_INFO.Altitude -= 10;
-                }
-                if (GPS_INFO.Altitude <= 0) GPS_INFO.Altitude = 0;
-                TriggerGPSUpdate();
-                return;
-            case 0x26: // VK_UP
-                nn = GetKeyState(VK_SHIFT);
-                if (nn < 0) {
-                    SimFastForward();
-                } else {
-                    InputEvents::eventChangeGS(_T("kup"));
-                }
-                TriggerGPSUpdate();
-                return;
-            case 0x28: // VK_DOWN
-                InputEvents::eventChangeGS(_T("kdown"));
-                TriggerGPSUpdate();
-                return;
-            case 0x25: // VK_LEFT
-                nn = GetKeyState(VK_SHIFT);
-                if (nn < 0) {
-                    GPS_INFO.TrackBearing -= 0.1;
+    if(HasKeyboard()) {
+        if (SIMMODE && IsMultiMapShared() && (!ReplayLogger::IsEnabled())) {
+            switch (KeyCode) {
+                case KEY_PRIOR: // VK_PRIOR PAGE UP
+                    if (GetShiftKeyState()) {
+                        if (Units::GetUserAltitudeUnit() == unFeet)
+                            GPS_INFO.Altitude += 45.71999999 * 10;
+                        else
+                            GPS_INFO.Altitude += 10 * 10;
+                    } else {
+                        if (Units::GetUserAltitudeUnit() == unFeet)
+                            GPS_INFO.Altitude += 45.71999999;
+                        else
+                            GPS_INFO.Altitude += 10;
+                    }
+                    TriggerGPSUpdate();
+                    return;
+                case KEY_NEXT: // VK_NEXT PAGE DOWN
+                    if (GetShiftKeyState()) {
+                        if (Units::GetUserAltitudeUnit() == unFeet)
+                            GPS_INFO.Altitude -= 45.71999999 * 10;
+                        else
+                            GPS_INFO.Altitude -= 10 * 10;
+                    } else {
+                        if (Units::GetUserAltitudeUnit() == unFeet)
+                            GPS_INFO.Altitude -= 45.71999999;
+                        else
+                            GPS_INFO.Altitude -= 10;
+                    }
+                    if (GPS_INFO.Altitude <= 0) GPS_INFO.Altitude = 0;
+                    TriggerGPSUpdate();
+                    return;
+                case KEY_UP: // VK_UP
+                    if (GetShiftKeyState()) {
+                        SimFastForward();
+                    } else {
+                        InputEvents::eventChangeGS(_T("kup"));
+                    }
+                    TriggerGPSUpdate();
+                    return;
+                case KEY_DOWN: // VK_DOWN
+                    InputEvents::eventChangeGS(_T("kdown"));
+                    TriggerGPSUpdate();
+                    return;
+                case KEY_LEFT: // VK_LEFT
+                    if (GetShiftKeyState()) {
+                        GPS_INFO.TrackBearing -= 0.1;
 
-                } else {
-                    GPS_INFO.TrackBearing -= 5;
-                }
-                if (GPS_INFO.TrackBearing < 0) GPS_INFO.TrackBearing += 360;
-                else if (GPS_INFO.TrackBearing > 359) GPS_INFO.TrackBearing -= 360;
+                    } else {
+                        GPS_INFO.TrackBearing -= 5;
+                    }
+                    if (GPS_INFO.TrackBearing < 0) GPS_INFO.TrackBearing += 360;
+                    else if (GPS_INFO.TrackBearing > 359) GPS_INFO.TrackBearing -= 360;
 
-                TriggerGPSUpdate();
-                return;
-            case 0x27: // VK_RIGHT
+                    TriggerGPSUpdate();
+                    return;
+                case KEY_RIGHT: // VK_RIGHT
+                    if (GetShiftKeyState()) {
+                        GPS_INFO.TrackBearing += 0.1;
+                    } else {
+                        GPS_INFO.TrackBearing += 5;
+                    }
+                    if (GPS_INFO.TrackBearing < 0) GPS_INFO.TrackBearing += 360;
+                    else if (GPS_INFO.TrackBearing > 359) GPS_INFO.TrackBearing -= 360;
 
-                nn = GetKeyState(VK_SHIFT);
-                if (nn < 0) {
-                    GPS_INFO.TrackBearing += 0.1;
-                } else {
-                    GPS_INFO.TrackBearing += 5;
-                }
-                if (GPS_INFO.TrackBearing < 0) GPS_INFO.TrackBearing += 360;
-                else if (GPS_INFO.TrackBearing > 359) GPS_INFO.TrackBearing -= 360;
+                    TriggerGPSUpdate();
+                    return;
+            }
+        }
 
-                TriggerGPSUpdate();
-                return;
+        extern double ReplayTime;
+        if (SIMMODE && IsMultiMapShared() && ReplayLogger::IsEnabled()) {
+            switch (KeyCode) {
+                case KEY_PRIOR: // VK_PRIOR PAGE UP
+                    ReplayTime += 300;
+                    return;
+                case KEY_UP: // VK_UP
+                    ReplayLogger::TimeScale++;
+                    return;
+                case KEY_DOWN: // VK_DOWN
+                    if (ReplayLogger::TimeScale > 0) ReplayLogger::TimeScale--;
+                    if (ReplayLogger::TimeScale < 0) ReplayLogger::TimeScale = 0; // to be safe
+                    return;
+                case KEY_RIGHT: // VK_RIGHT
+                    ReplayTime += 60;
+                    return;
+            }
         }
     }
 
-    extern double ReplayTime;
-    if (SIMMODE && IsMultiMapShared() && ReplayLogger::IsEnabled()) {
-        switch (KeyCode) {
-            case 0x21: // VK_PRIOR PAGE UP
-                ReplayTime += 300;
-                return;
-            case 0x26: // VK_UP
-                ReplayLogger::TimeScale++;
-                return;
-            case 0x28: // VK_DOWN
-                if (ReplayLogger::TimeScale > 0) ReplayLogger::TimeScale--;
-                if (ReplayLogger::TimeScale < 0) ReplayLogger::TimeScale = 0; // to be safe
-                return;
-            case 0x27: // VK_RIGHT
-                ReplayTime += 60;
-                return;
-        }
-    }
-
-#endif
-
-
+#ifdef UNDER_CE
     if (GlobalModelType == MODELTYPE_PNA_HP31X) {
         //		if (wParam == 0x7b) wParam=0xc1;  // VK_APP1 	
         if (KeyCode == 0x7b) KeyCode = 0x1b; // VK_ESCAPE
@@ -1045,7 +1062,7 @@ void MapWindow::_OnKeyDown(unsigned KeyCode) {
         }
     }
 #endif // not LXMINIMAP
-
+#endif // not UNDER_CE
     //
     // This is the handler for bluetooth keyboards
     //

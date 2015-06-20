@@ -13,6 +13,7 @@
 #include "TraceThread.h"
 #include <ctype.h>
 #include "dlgTools.h"
+#include "Event/Event.h"
 
   #define PICTO_OFFSET 28
 
@@ -195,14 +196,14 @@ static void PrepareData(void){
   SetWPNameCaption(TEXT("*"));
   WayPointSelectInfo = (WayPointSelectInfo_t*)malloc(sizeof(WayPointSelectInfo_t) * WayPointList.size());
   if (WayPointSelectInfo==NULL) {
-	OutOfMemory(__FILE__,__LINE__);
+	OutOfMemory(_T(__FILE__),__LINE__);
 	return;
   }
   memset(WayPointSelectInfo, 0, sizeof(WayPointSelectInfo_t) * WayPointList.size());
 
   StrIndex = (int*)malloc(sizeof(int)*(WayPointList.size()+1));
   if (StrIndex==NULL) {
-	OutOfMemory(__FILE__,__LINE__);
+	OutOfMemory(_T(__FILE__),__LINE__);
 	free(WayPointSelectInfo);
 	WayPointSelectInfo=NULL;
 	return;
@@ -670,6 +671,7 @@ static void OnPaintListItem(WindowControl * Sender, LKSurface& Surface){
   }
 #endif
 
+  Surface.SetTextColor(RGB_BLACK);
 
   if (DrawListIndex < n){
 
@@ -789,13 +791,13 @@ static bool FormKeyDown(Window* pWnd, unsigned KeyCode){
   wp = ((WndProperty *)wf->FindByName(TEXT("prpFltType")));
 
   switch(KeyCode & 0xffff){
-    case VK_F1:
+    case KEY_F1:
       NewIndex = 0;
     break;
-    case VK_F2:
+    case KEY_F2:
       NewIndex = 2;
     break;
-    case VK_F3:
+    case KEY_F3:
       NewIndex = 3;
     break;
   }

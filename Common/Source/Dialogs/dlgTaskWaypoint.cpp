@@ -36,15 +36,15 @@ static void UpdateCaption(void) {
     switch (twType) {
     case 0:
 	// LKTOKEN  _@M657_ = "Start" 
-      _stprintf(title, gettext(TEXT("_@M657_")));
+      _tcscpy(title, gettext(TEXT("_@M657_")));
       break;
     case 1:
 	// LKTOKEN  _@M749_ = "Turnpoint" 
-      _stprintf(title, gettext(TEXT("_@M749_")));
+      _tcscpy(title, gettext(TEXT("_@M749_")));
       break;
     case 2:
 	// LKTOKEN  _@M299_ = "Finish" 
-      _stprintf(title, gettext(TEXT("_@M299_")));
+      _tcscpy(title, gettext(TEXT("_@M299_")));
       break;
     };
 
@@ -487,6 +487,7 @@ static void OnSelectClicked(WndButton* pWnd){
         LockTaskData();
         ResetTaskWaypoint(twItemIndex);
         Task[twItemIndex].Index = res;
+        Task[twItemIndex].PGConeBase = WayPointList[res].Altitude;
         TaskModified = true;
         UnlockTaskData();
       }

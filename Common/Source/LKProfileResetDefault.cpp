@@ -10,7 +10,7 @@
 #include "McReady.h"
 #include "Modeltype.h"
 #include "LKInterface.h"
-
+#include "Asset.hpp"
 
 
 //
@@ -194,8 +194,10 @@ void LKProfileResetDefault(void) {
 
   // full size overlay by default
   OverlaySize = 0;
-
-  BarOpacity = 75;
+  if (IsDithered())
+      BarOpacity = 100;
+  else
+      BarOpacity = 75;
 
   #ifdef PPC2002  
   FontRenderer = 1; // AntiAliasing
@@ -206,6 +208,8 @@ void LKProfileResetDefault(void) {
   GPSAltitudeOffset = 0;
 
   UseGeoidSeparation = true;
+  UseExtSound1 = false;
+  UseExtSound2 = false;
 
   PressureHg = 0;
 
@@ -251,7 +255,10 @@ void LKProfileResetDefault(void) {
 
   AverEffTime = (AverEffTime_t)ae30seconds; 
 
-  BgMapColor_Config = 2;
+  if (IsDithered())
+      BgMapColor_Config = 0; // white
+  else
+      BgMapColor_Config = 2; // LCD green
 
   debounceTimeout.assign(0, 250*1000); // 250ms;
 
@@ -307,10 +314,9 @@ void LKProfileResetDefault(void) {
   #else
   SetSystemTimeFromGPS = false;
   #endif
+  SaveRuntime = false;
 
   AutoForceFinalGlide = false;
-
-  UseCustomFonts = 0;
 
   AlarmMaxAltitude1 = 0;
 
@@ -341,6 +347,7 @@ void LKProfileResetDefault(void) {
   Orbiter_Config = 1;
   Shading_Config = 1;
   OverlayClock = 0;
+  UseTwoLines = 0;
   SonarWarning_Config = 1; // sonar enabled by default on reset
 
   // default BB and IP is all ON
@@ -412,9 +419,6 @@ void LKProfileResetDefault(void) {
   dwSpeedIndex2 = 2;
   dwBit2Index = (BitIndex_t)bit8N1;
 
-  FontDesc_MapWindow[0]=_T('\0');
-  FontDesc_MapLabel [0]=_T('\0');
-
   _tcscpy(PilotName_Config,_T("WOLF.HIRTH"));
   _tcscpy(LiveTrackersrv_Config,_T("www.livetrack24.com"));
   LiveTrackerport_Config = 80;
@@ -453,6 +457,14 @@ void LKProfileResetDefault(void) {
   iFlarmDirection=0;
   AspPermanentChanged=0;
 
+  FontMapWaypoint=MAXFONTRESIZE;
+  FontMapTopology=MAXFONTRESIZE;
+  FontInfopage1L=MAXFONTRESIZE;
+  FontInfopage2L=MAXFONTRESIZE;
+  FontBottomBar=MAXFONTRESIZE;
+  FontCustom1=MAXFONTRESIZE;
+  FontOverlayBig=MAXFONTRESIZE;
+  FontOverlayMedium=MAXFONTRESIZE;
 
   // ######### ADD NEW ITEMS ABOVE THIS LINE  #########
 

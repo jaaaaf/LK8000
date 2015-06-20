@@ -53,10 +53,11 @@ const char *szRegistryColour[] =     { "Colour0",
 				  "Colour12",
 				  "Colour13",
                   "Colour14",
-                  "Colour15"
+                  "Colour15",
+                  "Colour16"
 };
 
-
+#ifdef HAVE_HATCHED_BRUSH
 const char *szRegistryBrush[] =     {  "Brush0",
 				  "Brush1",
 				  "Brush2",
@@ -72,8 +73,10 @@ const char *szRegistryBrush[] =     {  "Brush0",
 				  "Brush12",
 				  "Brush13",
                   "Brush14",
-                  "Brush15"
+                  "Brush15",
+                  "Brush16"
 };
+#endif
 
 const char *szRegistryAirspaceMode[] =     {  "AirspaceMode0",
 					       "AirspaceMode1",
@@ -90,7 +93,8 @@ const char *szRegistryAirspaceMode[] =     {  "AirspaceMode0",
 					       "AirspaceMode12",
 					       "AirspaceMode13",
                            "AirspaceMode14",
-                           "AirspaceMode15"
+                           "AirspaceMode15",
+                           "AirspaceMode16"
 };
 
 char szRegistryAcknowledgementTime[]=	 "AcknowledgementTime1";
@@ -196,9 +200,17 @@ char szRegistryFinalGlideTerrain[]= "FinalGlideTerrain";
 char szRegistryFinishLine[]=		 "FinishLine";
 char szRegistryFinishMinHeight[]= "FinishMinHeight";
 char szRegistryFinishRadius[]=		 "FinishRadius";
-char szRegistryFontMapLabelFont[]=	 "MapLabelFont"; 
-char szRegistryFontMapWindowFont[]=	 "MapWindowFont"; 
 char szRegistryFontRenderer[]= "FontRenderer2";
+char szRegistryFontMapWaypoint[]= "FontMapWaypoint";
+char szRegistryFontMapTopology[]= "FontMapTopology";
+char szRegistryFontInfopage1L[]= "FontInfopage1L";
+char szRegistryFontInfopage2L[]= "FontInfopage2L";
+char szRegistryFontBottomBar[]= "FontBottomBar";
+char szRegistryFontOverlayBig[]= "FontOverlayBig";
+char szRegistryFontOverlayMedium[]= "FontOverlayMedium";
+char szRegistryFontCustom1[]= "FontCustom1";
+
+
 char szRegistryGlideBarMode[]= "GlideBarMode";
 char szRegistryGliderScreenPosition[] = "GliderScreenPosition";
 char szRegistryGpsAltitudeOffset[] = "GpsAltitudeOffset";
@@ -239,6 +251,7 @@ char szRegistryOrbiter[] = "Orbiter";
 char szRegistryOutlinedTp[]= "OutlinedTp1";
 char szRegistryOverColor[]= "OverColor";
 char szRegistryOverlayClock[] = "OverlayClock";
+char szRegistryUseTwoLines[] = "UseTwoLines";
 char szRegistrySonarWarning[] = "SonarWarning";
 char szRegistryOverlaySize[]= "OverlaySize";
 char szRegistryPGAutoZoomThreshold[]= "PGAutoZoomThreshold1";
@@ -264,6 +277,7 @@ char szRegistrySafetyMacCready[] = "SafetyMacCready";
 char szRegistrySafteySpeed[] =          "SafteySpeed1";
 char szRegistrySectorRadius[]=          "Radius";
 char szRegistrySetSystemTimeFromGPS[] = "SetSystemTimeFromGPS";
+char szRegistrySaveRuntime[] = "SaveRuntime";
 char szRegistryShading[] = "Shading";
 char szRegistrySnailTrail[]=		 "SnailTrail";
 char szRegistrySnailWidthScale[] = "SnailWidthScale";
@@ -289,8 +303,9 @@ char szRegistryTpFilter[]= "TpFilter";
 char szRegistryTrackBar[]= "TrackBar";
 char szRegistryTrailDrift[]=		 "TrailDrift";
 char szRegistryUTCOffset[] = "UTCOffset";
-char szRegistryUseCustomFonts[]=	 "UseCustomFonts"; 
 char szRegistryUseGeoidSeparation[] = "UseGeoidSeparation";
+char szRegistryUseExtSound1[] = "UseExtSound1";
+char szRegistryUseExtSound2[] = "UseExtSound2";
 char szRegistryUseUngestures[] = "UseUngestures";
 char szRegistryUseTotalEnergy[] = "UseTotalEnergy";
 char szRegistryWarningTime[]=		 "WarnTime";
@@ -380,9 +395,9 @@ char szRegistryScreenSizeY[]      = "ScreenSizeY";
 //
 // ------------------------------------- externals ------------------------------------------
 //
-extern const char *szRegistryAirspaceMode[];	// 16
-extern const char *szRegistryBrush[];	// 16
-extern const char *szRegistryColour[];	// 16
+extern const char *szRegistryAirspaceMode[];	// 17
+extern const char *szRegistryBrush[];	// 17
+extern const char *szRegistryColour[];	// 17
 extern const char *szRegistryDisplayType[];	// MAXINFOWINDOWS
 extern const char szRegistryAcknowledgementTime[];
 extern const char szRegistryAdditionalAirspaceFile[];
@@ -487,9 +502,15 @@ extern const char szRegistryFinalGlideTerrain[];
 extern const char szRegistryFinishLine[];
 extern const char szRegistryFinishMinHeight[];
 extern const char szRegistryFinishRadius[];
-extern const char szRegistryFontMapLabelFont[];
-extern const char szRegistryFontMapWindowFont[];
 extern const char szRegistryFontRenderer[];
+extern const char szRegistryFontMapWaypoint[];
+extern const char szRegistryFontMapTopology[];
+extern const char szRegistryFontInfopage1L[];
+extern const char szRegistryFontInfopage2L[];
+extern const char szRegistryFontBottomBar[];
+extern const char szRegistryFontOverlayBig[];
+extern const char szRegistryFontOverlayMedium[];
+extern const char szRegistryFontCustom1[];
 extern const char szRegistryGlideBarMode[];
 extern const char szRegistryGliderScreenPosition[];
 extern const char szRegistryGpsAltitudeOffset[];
@@ -530,6 +551,7 @@ extern const char szRegistryOrbiter[];
 extern const char szRegistryOutlinedTp[];
 extern const char szRegistryOverColor[];
 extern const char szRegistryOverlayClock[];
+extern const char szRegistryUseTwoLines[];
 extern const char szRegistrySonarWarning[];
 extern const char szRegistryOverlaySize[];
 extern const char szRegistryPGAutoZoomThreshold[];
@@ -555,6 +577,7 @@ extern const char szRegistrySafetyMacCready[];
 extern const char szRegistrySafteySpeed[];
 extern const char szRegistrySectorRadius[];
 extern const char szRegistrySetSystemTimeFromGPS[];
+extern const char szRegistrySaveRuntime[];
 extern const char szRegistryShading[];
 extern const char szRegistrySnailTrail[];
 extern const char szRegistrySnailWidthScale[];
@@ -581,8 +604,9 @@ extern const char szRegistryTpFilter[];
 extern const char szRegistryTrackBar[];
 extern const char szRegistryTrailDrift[];
 extern const char szRegistryUTCOffset[];
-extern const char szRegistryUseCustomFonts[];
 extern const char szRegistryUseGeoidSeparation[];
+extern const char szRegistryUseExtSound1[];
+extern const char szRegistryUseExtSound2[];
 extern const char szRegistryUseUngestures[];
 extern const char szRegistryUseTotalEnergy[];
 extern const char szRegistryWarningTime[];

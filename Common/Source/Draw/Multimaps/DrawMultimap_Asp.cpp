@@ -15,6 +15,7 @@
 #include "LKInterface.h"
 #include "InputEvents.h"
 #include "Multimap.h"
+#include "Sound/Sound.h"
 
 extern POINT startScreen;
 extern bool IsMultimapConfigShown;
@@ -81,11 +82,12 @@ void MapWindow::LKDrawMultimap_Asp(LKSurface& Surface, const RECT& rc)
 	{
 	  if( PtInRect(&rc, startScreen))
 	  {
+        /*
+         * we can't show dialog from Draw thread
+         * instead, new event is queued, dialog will be popup by main thread 
+         */
+        InputEvents::processGlideComputer(GCE_WAYPOINT_DETAILS_SCREEN);
 
-		double Xstart, Ystart;
-		SideviewScreen2LatLon(startScreen.x, startScreen.y, Xstart, Ystart);
-//		StartupStore(_T("...... LKDrawMultimap_Asp lon:%f  lat:%f  \n"),Xstart,Ystart);
-		MapWindow::Event_NearestWaypointDetails(Xstart, Ystart, 500*zoom.RealScale(), false);
 	//	LKevent=LKEVENT_NONE;
 	  }
 	}

@@ -10,11 +10,10 @@
 #include "Message.h"
 #include "InputEvents.h"
 #include "TraceThread.h"
+#include "OS/Memory.h"
+#include "Sound/Sound.h"
 
 extern int ConnectionProcessTimer(int itimeout);
-extern bool BOOL2bool(BOOL a);
-extern bool ScreenHasChanged(void);
-extern void ReinitScreen(void);
 extern void CommonProcessTimer(void);
 
 //
@@ -108,10 +107,9 @@ void CommonProcessTimer()
   // are already in default mode. We can live with this solution.
   MenuTimeOut++;
 
-  // 1 Hz routines
-  if (cp_twohzcounter %2 == 0) {
+  // 0.5 Hz routines
+  if (cp_twohzcounter %4 == 0) {
 	UpdateBatteryInfos();
-	if (ScreenHasChanged()) ReinitScreen();
   }
 
   Message::Render();
@@ -141,7 +139,7 @@ int ConnectionProcessTimer(int itimeout) {
   static bool s_lockWait = false;
  
   // save status for this run 
-  bool gpsconnect = BOOL2bool(GPSCONNECT);
+  bool gpsconnect = GPSCONNECT;
   
   if (gpsconnect) {
     extGPSCONNECT = TRUE;

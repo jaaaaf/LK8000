@@ -56,7 +56,8 @@ GEXTERN bool goInstallSystem GEXTFALSE;
 GEXTERN bool goCalculationThread GEXTFALSE;
 
 
-
+GEXTERN unsigned short HaveSystemInfo GEXTZERO; // Normally only on linux
+GEXTERN bool HaveBatteryInfo GEXTFALSE;
 
 GEXTERN TCHAR LK8000_Version[256];
 
@@ -135,6 +136,8 @@ GEXTERN bool  WarningHomeDir;
 
 // Specials
 GEXTERN bool UseGeoidSeparation;
+GEXTERN bool UseExtSound1;
+GEXTERN bool UseExtSound2;
 GEXTERN double GPSAltitudeOffset; 	// VENTA3
 GEXTERN bool PressureHg;
 //GEXTERN bool ShortcutIbox;
@@ -154,7 +157,7 @@ GEXTERN bool WasFlying;
 
 GEXTERN double LastDoRangeWaypointListTime;
 GEXTERN bool DeviceNeedClipping;
-GEXTERN bool ForcedClipping;
+
 GEXTERN bool EnableAutoBacklight;
 GEXTERN bool EnableAutoSoundVolume;
 GEXTERN DWORD EnableFLARMMap;
@@ -183,7 +186,6 @@ GEXTERN short SortBoxX[MSM_TOP+1][MAXSORTBOXES+1];
 GEXTERN short BottomGeom; // registry saved lk8000 navboxes geometry
 GEXTERN short GlideBarOffset; // offset to the right for drawing LK8000 with GB active
 GEXTERN bool  EngineeringMenu; // not saved in registry
-GEXTERN short splitter;	
 GEXTERN short DeclutterMode;
 
 GEXTERN int PGClimbZoom;
@@ -200,6 +202,16 @@ GEXTERN bool PGOptimizeRoute_Config;
 
 GEXTERN short OverlaySize;
 GEXTERN short BarOpacity;
+
+GEXTERN short FontMapWaypoint;
+GEXTERN short FontMapTopology;
+GEXTERN short FontInfopage1L;
+GEXTERN short FontInfopage2L;
+GEXTERN short FontBottomBar;
+GEXTERN short FontCustom1;
+GEXTERN short FontOverlayBig;
+GEXTERN short FontOverlayMedium;
+
 GEXTERN short FontRenderer;
 GEXTERN bool LockModeStatus;
 
@@ -228,7 +240,6 @@ GEXTERN double  LastZoomTrigger;
 // traffic DoTraffic interval, also reset during key up and down to prevent wrong selections
 GEXTERN double  LastDoTraffic;
 
-GEXTERN double LastDoAirspaces;
 GEXTERN double LastDoNearest;
 GEXTERN double LastDoCommon;
 GEXTERN double LastDoThermalH;
@@ -276,7 +287,7 @@ GEXTERN int LKSortedTraffic[FLARM_MAX_TRAFFIC+1];
 GEXTERN int LKTargetIndex;
 GEXTERN int LKTargetType;
 
-// Copy of runtime airspaces for instant use
+// Copy of runtime airspaces for instant use (Shared Ressource, Lock is needed)
 GEXTERN LKAirspace_Nearest_Item LKAirspaces[MAXNEARAIRSPACES+1];
 
 // Number of asps (items) of existing airspaces updated from DoAirspaces
@@ -351,6 +362,7 @@ GEXTERN double ThLatitude;
 GEXTERN double ThLongitude;
 GEXTERN double ThermalRadius;
 GEXTERN double SinkRadius;
+GEXTERN double SimNettoVario;
 
 // Append over here NEW
 
@@ -385,26 +397,16 @@ GEXTERN short SelectedRaw[MSM_TOP+1];
 // since it doesnt eat memory, it is also used for pages with currently no subpages
 GEXTERN short SelectedPage[MSM_TOP+1];
 
-GEXTERN short Numraws;
 GEXTERN short Numpages;
-GEXTERN short CommonNumraws;
-GEXTERN short CommonNumpages;
-// GEXTERN short TurnpointNumraws; 101222
-// GEXTERN short TurnpointNumpages;
-GEXTERN short TrafficNumpages;
-GEXTERN short AspNumpages;
-GEXTERN short THistoryNumpages;
 GEXTERN short ModeIndex;
 
 // LK8000 sync flags
 GEXTERN bool NearestDataReady;
 GEXTERN bool CommonDataReady;
 GEXTERN bool RecentDataReady;
-// GEXTERN bool NearestTurnpointDataReady; 101222
 GEXTERN bool LKForceDoNearest;
 GEXTERN bool LKForceDoCommon;
 GEXTERN bool LKForceDoRecent;
-// GEXTERN bool LKForceDoNearestTurnpoint; 101222
 GEXTERN short LKevent;
 GEXTERN bool LKForceComPortReset;
 GEXTERN bool LKDoNotResetComms;
@@ -426,6 +428,7 @@ GEXTERN double ScreenDScale;
 GEXTERN int ScreenScale;
 GEXTERN bool ScreenIntScale;
 GEXTERN double Screen0Ratio;
+GEXTERN short ScreenGeometry;
 
 GEXTERN int AircraftMenuSize;
 GEXTERN int CompassMenuSize;
@@ -548,10 +551,8 @@ GEXTERN bool InfoWindowActive;
 // snail trail
 GEXTERN SNAIL_POINT SnailTrail[TRAILSIZE];
 GEXTERN	int SnailNext;
-#if LONGSNAIL
 GEXTERN LONG_SNAIL_POINT LongSnailTrail[LONGTRAILSIZE+1];
 GEXTERN	int LongSnailNext;
-#endif
 GEXTERN int TrailLock;
 
 // Logger
@@ -578,6 +579,7 @@ GEXTERN double QNH;
 GEXTERN int NettoSpeed;
 GEXTERN Poco::Timespan debounceTimeout;
 GEXTERN bool SetSystemTimeFromGPS;
+GEXTERN bool SaveRuntime;
 GEXTERN bool ForceFinalGlide;
 GEXTERN bool AutoForceFinalGlide;
 
@@ -644,6 +646,7 @@ GEXTERN unsigned short CustomMenu9;
 GEXTERN unsigned short CustomMenu10;
 
 GEXTERN bool OverlayClock;
+GEXTERN bool UseTwoLines;
 GEXTERN bool EnableSoundModes;
 GEXTERN int DisplayOrientation;
 GEXTERN int DisplayOrientation_Config;
@@ -692,6 +695,7 @@ GEXTERN BOOL LANGUAGEFILECHANGED;
 GEXTERN BOOL INPUTFILECHANGED;
 GEXTERN BOOL MAPFILECHANGED;
 GEXTERN bool NEWWAYPOINTFILE;
+GEXTERN bool FONTSCHANGED;
 
 // Team code
 GEXTERN int TeamCodeRefWaypoint;
@@ -711,13 +715,6 @@ GEXTERN StatusMessageSTRUCT StatusMessageData[MAXSTATUSMESSAGECACHE];
 GEXTERN int StatusMessageData_Size;
 
 GEXTERN bool LKLanguageReady;
-
-GEXTERN int UseCustomFonts;
-
-#if (WINDOWSPC>0) || defined(__linux__)
-GEXTERN int SCREENWIDTH;
-GEXTERN int SCREENHEIGHT;
-#endif
 
 GEXTERN short TerrainContrast;
 GEXTERN short TerrainBrightness;
@@ -777,33 +774,41 @@ GEXTERN LKFont	TitleWindowFont;
 GEXTERN LKFont   MapWindowFont;
 GEXTERN LKFont   MapWindowBoldFont;
 GEXTERN LKFont   CDIWindowFont;
-GEXTERN LKFont   MapLabelFont;
-GEXTERN LKFont   StatisticsFont;
+GEXTERN LKFont   LK8GenericVar03Font;
 
-GEXTERN LKFont   LK8UnitFont;
+GEXTERN LKFont   Custom1Font;
+GEXTERN LKFont   MapWaypointFont;
+GEXTERN LKFont   MapWaypointBoldFont;
+GEXTERN LKFont   MapScaleFont;
+GEXTERN LKFont   MapTopologyFont;
+
 GEXTERN LKFont   LK8TitleFont;
 GEXTERN LKFont   LK8MapFont;
-GEXTERN LKFont   LK8TitleNavboxFont;
-GEXTERN LKFont   LK8ValueFont;
+GEXTERN LKFont   LK8GenericVar01Font;
+GEXTERN LKFont   LK8GenericVar02Font;
+GEXTERN LKFont   LK8BottomBarTitleFont;
+GEXTERN LKFont   LK8BottomBarValueFont;
+GEXTERN LKFont   LK8BottomBarUnitFont;
 GEXTERN LKFont   LK8TargetFont;
 GEXTERN LKFont   LK8BigFont;
+GEXTERN LKFont   LK8OverlayBigFont;
+GEXTERN LKFont   LK8OverlayMediumFont;
+GEXTERN LKFont   LK8OverlaySmallFont;
+GEXTERN LKFont   LK8OverlayGatesFont;
+GEXTERN LKFont   LK8OverlayMcModeFont;
 GEXTERN LKFont   LK8MediumFont;
 GEXTERN LKFont   LK8SmallFont;
 GEXTERN LKFont   LK8InfoBigFont;
 GEXTERN LKFont   LK8InfoBigItalicFont;
+GEXTERN LKFont   LK8InfoBig2LFont;
+GEXTERN LKFont   LK8InfoBigItalic2LFont;
 GEXTERN LKFont   LK8InfoNormalFont;
+GEXTERN LKFont   LK8InfoNearestFont;
 GEXTERN LKFont   LK8InfoSmallFont;
 GEXTERN LKFont   LK8PanelBigFont;
 GEXTERN LKFont   LK8PanelMediumFont;
 GEXTERN LKFont   LK8PanelSmallFont;
 GEXTERN LKFont   LK8PanelUnitFont;
-
-GEXTERN LOGFONT  autoTitleWindowLogFont;
-GEXTERN LOGFONT  autoMapWindowLogFont;
-GEXTERN LOGFONT  autoMapWindowBoldLogFont;
-GEXTERN LOGFONT  autoCDIWindowLogFont;
-GEXTERN LOGFONT  autoMapLabelLogFont;
-GEXTERN LOGFONT  autoStatisticsLogFont;
 
 //
 // File names and paths
@@ -839,10 +844,6 @@ GEXTERN DWORD TaskSpeedUnit_Config;
 GEXTERN DWORD DistanceUnit_Config;
 GEXTERN DWORD LiftUnit_Config;
 GEXTERN DWORD AltitudeUnit_Config;
-
-// Editable fonts, verbose string
-GEXTERN TCHAR FontDesc_MapWindow[256];
-GEXTERN TCHAR FontDesc_MapLabel[256];
 
 // Logger
 GEXTERN TCHAR PilotName_Config[100];

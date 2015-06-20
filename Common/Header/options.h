@@ -27,8 +27,6 @@
     #define OLDTASK_COMPAT
 #endif
 
-#include "compatibility.h"
-
 
 // Disable internally generated sounds
 #if !defined(WIN32) && !defined(ENABLE_SDL)
@@ -36,10 +34,33 @@
     #define DISABLEAUDIO
 #endif
 
+// Disable externally generated sounds
+#if !defined(KOBO)
+    // audio can be also implemented for external device
+    #define DISABLEEXTAUDIO
+#endif
 
 #ifdef __linux__
  // temporary disable, need to be port...
  #define NO_DATARECORDER
+
+// Cpu load : use averaged number of processes in the system run queue instead of real cpu usage 
+// #define USE_LOADAVG_CPU
+
+#endif
+
+//
+// Lite dithering: adjust lite color brushes to be white, etc. for better rendering on 
+// eink screens.
+//
+#ifdef DITHER
+#define UNDITHER 1
+#endif
+
+#ifdef ENABLE_SDL
+//Use fullscreen for linux with SDL screen backend
+// careful : resolution change crash with SDL 2.0
+//    #define USE_FULLSCREEN
 #endif
 
 #ifdef PNA
@@ -80,6 +101,7 @@
 // It is introducing a TIMER in event processed inside MapWndProc.
 //#define LONGCLICK_FEEDBACK
 
+// #define SAVESCREEN	1	// Save screen geometry to profile and load it on startup
 
 
 
@@ -99,8 +121,14 @@
 // In v5 this is practically unused. Should be removed asap.
 #define USEBIGZOOM	1	
 
-// Long trail size
-#define LONGSNAIL  1
+// Gyroscope based AHRS in TRI function - EXPERIMENTAL
+#define USE_AHRS
+
+// LAST_TASKPOINT_QUESTION
+#define LAST_TASKPOINT_QUESTION
+// remove question for last turnpoint is good idea, but don't work
+// Usability of task definition needed to be refactoring before remove that.
+
 
 // ----------------------------------------------------------------------------------------
 //
@@ -108,13 +136,13 @@
 //
 // ----------------------------------------------------------------------------------------
 
-#define ULLIS_PRIVATE_FEATURES  // Ulli's individual features
+//#define ULLIS_PRIVATE_FEATURES  // Ulli's individual features
 #ifdef ULLIS_PRIVATE_FEATURES
   #define GOTO_AS_SIMPLETASK  // even a singel goto will be listed in multiselect
   #define BUTTONS_MS
   #define OWN_POS_MS
   #define OWN_FLARM_TRACES
-  #define FLARM_MS
+//  #define FLARM_MS    // not implemented inside Multiselect dialog.
   #define OUTLINE_2ND		// double outline airspaces
 #endif
 
@@ -126,14 +154,11 @@
 // They must be first enabled with BUTTONS_MS
 // WARNING THESE FUNCTIONS ARE NOT CHECKED FOR THREAD SAFETY AND CAN LEAD TO CRASHES
 //
-  #define BUTTONS_MS		// this is REQUIRED to enable one of the following:
-  #define TEAM_CODE_MS		// button to trigger team code
-  #define OWN_POS_MS		// button to trigger basic settings
-  #define ORACLE_MS		// button to trigger oracle
-  #define FLARM_MS
-
-// still to be tested in v5.0
-  #define USE_AHRS
+//  #define BUTTONS_MS		// this is REQUIRED to enable one of the following:
+//  #define TEAM_CODE_MS		// button to trigger team code
+//  #define OWN_POS_MS		// button to trigger basic settings
+//  #define ORACLE_MS		// button to trigger oracle
+  
 
 // Use F Record in IGC log files- not needed really
 // #define LOGFRECORD	1
@@ -164,9 +189,6 @@
 //
 // ----------------------------------------------------------------------------------------
 
-// #define RASTERCACHE		1	// fallback to cached dem if it does not fit in memory entirely. 
-					// Does not work. 
-
 
 // #define USESWITCHES	1	// External device switch support / to be completed because unused
 				// Do not remove, it can be worked out with no problems if we want to
@@ -184,10 +206,6 @@
 // So there is no more instant view of what is happening, and for this reason the option is disabled.
 // #define LKASP_CALC_ON_CHANGE_ONLY		1
 
-// LAST_TASKPOINT_QUESTION
-#define LAST_TASKPOINT_QUESTION
-// remove question for last turnpoint is good idea, but don't work
-// Usability of task definition needed to be refactoring before remove that.
 
 #include "Debug.h"	// DEBUG OPTIONS FOR EVERYONE, depending also on TESTBENCH
 

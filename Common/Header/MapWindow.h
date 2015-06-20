@@ -156,7 +156,6 @@ typedef struct _SNAIL_POINT
   double DriftFactor;
 } SNAIL_POINT;
 
-#if LONGSNAIL
 typedef struct _LONG_SNAIL_POINT
 {
   float Latitude;
@@ -164,7 +163,6 @@ typedef struct _LONG_SNAIL_POINT
   POINT Screen;
   bool FarVisible;
 } LONG_SNAIL_POINT;
-#endif
 
 typedef struct {
     bool Border;
@@ -299,6 +297,7 @@ class MapWindow {
 
     bool GetPgClimbInitMapScaleText(int init_parameter, TCHAR *out, size_t size) const;
     bool GetPgCruiseInitMapScaleText(int init_parameter, TCHAR *out, size_t size) const;
+
   };
   
 
@@ -377,7 +376,9 @@ class MapWindow {
 
   static bool IsDisplayRunning();
   static int iAirspaceMode[AIRSPACECLASSCOUNT];
+#ifdef HAVE_HATCHED_BRUSH
   static int iAirspaceBrush[AIRSPACECLASSCOUNT]; 
+#endif
   static int iAirspaceColour[AIRSPACECLASSCOUNT];
   static BOOL CLOSETHREAD;
 
@@ -385,14 +386,16 @@ class MapWindow {
     return Colours[i];
   }
 
-#ifdef HAVE_HATCHED_BRUSH
   static const LKBrush& GetAirspaceBrush(int i) {
     return hAirspaceBrushes[i];
   }
   static const LKBrush& GetAirspaceBrushByClass(int i) {
-    return hAirspaceBrushes[iAirspaceBrush[i]];
-  }
+#ifdef HAVE_HATCHED_BRUSH
+    return GetAirspaceBrush(iAirspaceBrush[i]);
+#else
+    return GetAirspaceBrush(iAirspaceColour[i]);
 #endif
+  }
 
   static const LKColor& GetAirspaceColourByClass(int i) {
     return Colours[iAirspaceColour[i]];
@@ -420,9 +423,7 @@ class MapWindow {
   static LKPen hSnailPens[NUMSNAILCOLORS];
   static LKColor hSnailColours[NUMSNAILCOLORS];
 
-#ifdef HAVE_HATCHED_BRUSH
   static LKBrush hAirspaceBrushes[NUMAIRSPACEBRUSHES];
-#endif
 
   // solid brushes for airspace drawing (initialized in InitAirSpaceSldBrushes())
   static LKBrush hAirSpaceSldBrushes[NUMAIRSPACECOLORS];
@@ -435,6 +436,7 @@ class MapWindow {
   static RECT MapRect;			// See explanation in MapWndProc
   static RECT DrawRect;
   static bool ForceVisibilityScan;
+  static bool ThermalBarDrawn;
 
   static bool MapDirty;
 
@@ -474,7 +476,7 @@ class MapWindow {
   static void SuspendDrawingThread(void);
   static void ResumeDrawingThread(void);
   
-  static void LKWriteText(LKSurface& Surface, const TCHAR* wText, int x, int y, int maxsize, const bool mode, const short align, const LKColor& rgb_tex, bool invertable);
+  static void LKWriteText(LKSurface& Surface, const TCHAR* wText, int x, int y, int maxsize, const bool mode, const short align, const LKColor& rgb_tex, bool invertable, RECT* ClipRect = nullptr);
   static void LKWriteBoxedText(LKSurface& Surface, const RECT& clipRect, const TCHAR* wText, int x, int y, int maxsize, const short align, const LKColor& rgb_dir, const LKColor& rgb_inv );
 
   static bool LKFormatValue(const short fvindex, const bool longtitle, TCHAR *BufferValue, TCHAR *BufferUnit, TCHAR *BufferTitle);
@@ -488,11 +490,11 @@ class MapWindow {
   static void Event_TerrainTopology(int vswitch);
   static void Event_PanCursor(int dx, int dy);
   static bool Event_InteriorAirspaceDetails(double lon, double lat);
-  static bool Event_NearestWaypointDetails(double lon, double lat, double range, bool pan);
+  static bool Event_NearestWaypointDetails(double lon, double lat);
 
   static void UpdateInfo(NMEA_INFO *nmea_info,
 			 DERIVED_INFO *derived_info);
-  static rectObj CalculateScreenBounds(double scale);
+  static rectObj CalculateScreenBounds(double scale, const RECT& rc);
   static void ScanVisibility(rectObj *bounds_active);
 
   static int HeightToY(double fHeight,  DiagrammStruct* psDia);
@@ -500,7 +502,7 @@ class MapWindow {
   static void RenderNearAirspace(LKSurface& Surface, const RECT rci);
   static int SharedTopView(LKSurface& Surface,   DiagrammStruct* pDia, double iAS_Bearing, double wpt_brg);
   static void RenderAirspace(LKSurface& Surface, const RECT rc);
-  static void DrawVisualGlide (LKSurface& Surface, DiagrammStruct* pDia);
+  static void DrawVisualGlide (LKSurface& Surface, const DiagrammStruct& sDia);
   static short GetVisualGlidePoints(unsigned short numslots );
   static void LKDrawFlarmRadar(LKSurface& Surface, const RECT& rci);
   static void LKDrawMultimap_Example(LKSurface& Surface, const RECT& rci);
@@ -508,9 +510,6 @@ class MapWindow {
   static void LKDrawMultimap_Asp(LKSurface& Surface, const RECT& rci);
   static void LKDrawMultimap_Radar(LKSurface& Surface, const RECT& rci);
 
-  static void DrawMultimap_Topleft(LKSurface& Surface, const RECT& rci);
-  static void DrawMultimap_Topright(LKSurface& Surface, const RECT& rci);
-  static void DrawMultimap_DynaLabel(LKSurface& Surface, const RECT& rci);
   static void DrawMultimap_SideTopSeparator(LKSurface& Surface, const RECT& rci);
 
 
@@ -549,6 +548,7 @@ class MapWindow {
 
   static void DrawWindAtAircraft2(LKSurface& Surface, const POINT& Orig, const RECT& rc);
   static void DrawAirSpace(LKSurface& Surface, const RECT& rc);
+  static void DrawAirSpacePattern(LKSurface& Surface, const RECT& rc);
   static void DrawAirSpaceBorders(LKSurface& Surface, const RECT& rc);
   static void DrawAirspaceLabels(LKSurface& Surface, const RECT& rc, const POINT& Orig_Aircraft);
   static void DrawWaypointsNew(LKSurface& Surface, const RECT& rc);
@@ -601,9 +601,7 @@ class MapWindow {
 
 
   static double LKDrawTrail(LKSurface& Surface, const POINT& Orig, const RECT& rc);
-  #if LONGSNAIL
   static double LKDrawLongTrail(LKSurface& Surface, const POINT& Orig, const RECT& rc);
-  #endif
   static void DrawTeammate(LKSurface& Surface, const RECT& rc);
   static void DrawOffTrackIndicator(LKSurface& Surface, const RECT& rc);
   static void DrawProjectedTrack(LKSurface& Surface, const RECT& rc, const POINT& Orig);
@@ -642,21 +640,18 @@ class MapWindow {
 
 
 protected:
-  static LKBitmapSurface ScreenSurface;
+  static LKBitmapSurface BackBufferSurface;
 
 private:
   static int iSnailNext;
-#if LONGSNAIL
   static int iLongSnailNext;
-#endif
 
-  static LKWindowSurface TempSurface; // used as AttribDC for Bitmap Surface.
+  static LKWindowSurface WindowSurface; // used as AttribDC for Bitmap Surface.
 
-  static LKBitmapSurface hdcDrawWindow;
+  static LKBitmapSurface DrawSurface;
   
-  static LKBitmapSurface hDCTempTask;
-  static LKBitmapSurface hdcTempTerrainAbove;
-  static LKBitmapSurface hdcTempAsp; // Only used For Airspaces drawing
+  static LKBitmapSurface TempSurface;
+  
   static LKMaskBitmapSurface hdcMask; // Only used For Airspaces drawing "Transparent Border" or "Paterns Borders"
   static LKBitmapSurface hdcbuffer; // Used For aispaces
   
@@ -671,6 +666,18 @@ private:
   static void RefreshMap(); // set public VENTA
 
   static rectObj screenbounds_latlon;
+
+  // this property is calculated by UpdateActiveScreenZone() on OnCreate(...) and OnSize(...) or user call
+  static short Y_BottomBar; // this is different from BottomBarY
+  static POINT P_Doubleclick_bottomright; // squared area for screen lock doubleclick, normally on right bottombar
+  static POINT P_MenuIcon_DrawBottom; // Menu icon area (topleft coord)
+  static POINT P_MenuIcon_noDrawBottom; // same, without bottombar drawn, forgot why it is different
+
+  static POINT P_UngestureLeft;
+  static POINT P_UngestureRight;
+
+  static short Y_Up, Y_Down; // Up and Down keys vertical limits, ex. for zoom in out on map
+  static short X_Left, X_Right; // Ungestured fast clicks on infopages (THE SAME AS IN: PROCESS_VIRTUALKEY)
   
   static BOOL THREADRUNNING;
   static BOOL THREADEXIT;
@@ -714,7 +721,7 @@ private:
 
   static Poco::ThreadTarget MapWindowThreadRun;
 
-  static void RenderMapWindow(const RECT& rc);
+  static void RenderMapWindow(LKSurface& Surface, const RECT& rc);
   static void RenderMapWindowBg(LKSurface& Surface, const RECT& rc,
 				const POINT &Orig,
 				const POINT &Orig_Aircraft);
@@ -769,7 +776,7 @@ private:
   static bool TargetMoved(double &longitude, double &latitude);
 
     // Touch Screen Events Area
-    static void UpdateActiveScreenZone(int cx, int cy);
+    static void UpdateActiveScreenZone(RECT rc);
 
 protected:
 	static void _OnSize(int cx, int cy);
@@ -794,17 +801,6 @@ protected:
     static double Xlat, Ylat;
     static double distance;
 
-    // this property is calculated by UpdateActiveScreenZone() on OnCreate(...) and OnSize(...) or user call
-    static short Y_BottomBar; // this is different from BottomBarY
-    static POINT P_Doubleclick_bottomright; // squared area for screen lock doubleclick, normally on right bottombar
-    static POINT P_MenuIcon_DrawBottom; // Menu icon area (topleft coord)
-    static POINT P_MenuIcon_noDrawBottom; // same, without bottombar drawn, forgot why it is different
-
-    static POINT P_UngestureLeft;
-    static POINT P_UngestureRight;
-
-    static short Y_Up, Y_Down; // Up and Down keys vertical limits, ex. for zoom in out on map
-    static short X_Left, X_Right; // Ungestured fast clicks on infopages (THE SAME AS IN: PROCESS_VIRTUALKEY)
     
 /////////////////////////////////////////////////////    
     

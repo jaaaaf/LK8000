@@ -78,7 +78,11 @@ Copyright_License {
 #define gcc_malloc __attribute__((malloc))
 #define gcc_noreturn __attribute__((noreturn))
 #define gcc_packed __attribute__((packed))
+#ifdef __MINGW32__
+#define gcc_printf(a,b)
+#else
 #define gcc_printf(a,b) __attribute__((format(printf, a, b)))
+#endif
 #define gcc_pure __attribute__((pure))
 #define gcc_sentinel __attribute__((sentinel))
 #define gcc_unused __attribute__((unused))
@@ -96,6 +100,7 @@ Copyright_License {
 #define gcc_visibility_default __attribute__((visibility("default")))
 
 #define gcc_always_inline __attribute__((always_inline))
+#define gcc_noinline __attribute__((noinline))
 
 #else
 

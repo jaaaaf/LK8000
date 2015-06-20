@@ -20,7 +20,7 @@
 RasterMap* RasterTerrain::TerrainMap = NULL;
 
 
-bool RasterMap::GetMapCenter(double *lon, double *lat) {
+bool RasterMap::GetMapCenter(double *lon, double *lat) const {
   if(!isMapLoaded())
     return false;
 
@@ -30,7 +30,7 @@ bool RasterMap::GetMapCenter(double *lon, double *lat) {
 }
 
 
-float RasterMap::GetFieldStepSize() {
+float RasterMap::GetFieldStepSize() const {
   if (!isMapLoaded()) {
     return 0;
   }
@@ -42,7 +42,7 @@ float RasterMap::GetFieldStepSize() {
 
 // accurate method
 int RasterMap::GetEffectivePixelSize(double *pixel_D,
-                                     double latitude, double longitude)
+                                     double latitude, double longitude) const
 {
   double terrain_step_x, terrain_step_y;
   double step_size = TerrainInfo.StepSize*sqrt(2.0);
@@ -70,7 +70,7 @@ int RasterMap::GetEffectivePixelSize(double *pixel_D,
 }
 
 
-int RasterMap::GetEffectivePixelSize(double dist) {
+int RasterMap::GetEffectivePixelSize(double dist) const {
   int grounding;
   LKASSERT(dist!=0);
   grounding = iround(2.0*(GetFieldStepSize()/1000.0)/dist);
@@ -87,53 +87,31 @@ void RasterMap::SetFieldRounding(double xr, double yr) {
 
   Xrounding = iround(xr/TerrainInfo.StepSize);
   Yrounding = iround(yr/TerrainInfo.StepSize);
-
   if (Xrounding<1) {
     Xrounding = 1;
-  } 
+  }
+  
   fXrounding = 1.0/(Xrounding*TerrainInfo.StepSize);
   fXroundingFine = fXrounding*256.0;
   if (Yrounding<1) {
     Yrounding = 1;
   }
+  
   fYrounding = 1.0/(Yrounding*TerrainInfo.StepSize);
   fYroundingFine = fYrounding*256.0;
 
-  DirectFine = false;
+  if ((Xrounding==1)&&(Yrounding==1)) {
+    DirectFine = true;
+    xlleft = (int)(TerrainInfo.Left*fXroundingFine)+128;
+    xlltop  = (int)(TerrainInfo.Top*fYroundingFine)-128;
+  } else {
+    DirectFine = false;
+  }
 }
 
 
 
 ////////// Map general /////////////////////////////////////////////
-
-
-// JMW rounding further reduces data as required to speed up terrain
-// display on low zoom levels
-short RasterMap::GetField(const double &Latitude, 
-                          const double &Longitude)
-{
-  if(isMapLoaded()) {
-    if (DirectFine) {
-      return _GetFieldAtXY((int)(Longitude*fXroundingFine)-xlleft,
-                           xlltop- (int)(Latitude*fYroundingFine));
-    } else {
-	#if (WINDOWSPC>0)
-      unsigned int ix = 
-        Real2Int((Longitude-TerrainInfo.Left)*fXrounding)*Xrounding;
-      unsigned int iy = 
-        Real2Int((TerrainInfo.Top-Latitude)*fYrounding)*Yrounding;
-	#else
-      unsigned int ix = ((int)((Longitude-TerrainInfo.Left)*fXrounding)) *Xrounding;
-      unsigned int iy = ((int)((TerrainInfo.Top-Latitude)*fYrounding))*Yrounding;
-	#endif
-      
-      return _GetFieldAtXY(ix<<8, iy<<8);
-    }
-  } else {
-    return TERRAIN_INVALID;
-  }
-}
-
 
 
 void RasterTerrain::Lock(void) {
@@ -150,7 +128,7 @@ void RasterTerrain::Unlock(void) {
 
 short RasterTerrain::GetTerrainHeight(const double &Latitude,
                                       const double &Longitude) {
-  if (TerrainMap) {
+  if (TerrainMap && TerrainMap->isMapLoaded()) {
     return TerrainMap->GetField(Latitude, Longitude);
   } else {
     return TERRAIN_INVALID;
@@ -174,44 +152,11 @@ bool RasterTerrain::IsPaged(void) {
   }
 }
 
-
-void RasterTerrain::ServiceCache(void) {
-  Lock();
-  if (TerrainMap) {
-    TerrainMap->ServiceCache();
-  }
-  Unlock();
-}
-
 void RasterTerrain::SetTerrainRounding(double x, double y) {
   if (TerrainMap) {
     TerrainMap->SetFieldRounding(x, y);
   }
 }
-
-void RasterTerrain::ServiceTerrainCenter(double lat, double lon) {
-  Lock();
-
-  if (TerrainMap) {
-    TerrainMap->SetViewCenter(lat, lon);
-  }
-  Unlock();
-}
-
-
-void RasterTerrain::ServiceFullReload(double lat, double lon) {
-
-  Lock();
-  if (TerrainMap) {
-    CreateProgressDialog(gettext(TEXT("_@M901_"))); // Loading terrain tiles...
-    #if TESTBENCH
-    StartupStore(_T(". Loading terrain tiles...%s"),NEWLINE);
-    #endif
-    TerrainMap->ServiceFullReload(lat, lon);
-  }
-  Unlock();
-}
-
 
 int RasterTerrain::GetEffectivePixelSize(double *pixel_D, 
                                          double latitude, double longitude) {

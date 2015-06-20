@@ -20,6 +20,7 @@
 #include "MathFunctions.h"
 #include "utils/2dpclip.h"
 #include "utils/array_adaptor.h"
+#include "Screen/LKBitmapSurface.h"
 
 #ifdef WIN32
 
@@ -60,8 +61,8 @@ HDC LKSurface::GetTempDC() {
 }
 
 bool LKSurface::Attach(HDC hDC) {
-    assert(NULL == _OutputDC); // only attach once.
-    assert(NULL == _AttribDC);
+    LKASSERT(NULL == _OutputDC); // only attach once.
+    LKASSERT(NULL == _AttribDC);
     if (NULL == hDC) {
         return false;
     }
@@ -78,6 +79,9 @@ HDC LKSurface::Detach() {
     return hDC;
 }
 #else
+
+#include "Screen/SubCanvas.hpp"
+
 
 LKSurface::LKSurface() : _pCanvas() {
     
@@ -198,6 +202,18 @@ void LKSurface::DrawBitmap(const int x, const int y, const int cx, const int cy,
 #endif    
 }
 
+void LKSurface::DrawBitmapCopy(const int x, const int y, const int cx, const int cy, const LKBitmap& Bitmap) {
+#ifdef WIN32
+    HGDIOBJ old = ::SelectObject(GetTempDC(), (HBITMAP) Bitmap);
+    ::BitBlt(*this, x, y, cx, cy, GetTempDC(), 0, 0, SRCCOPY);
+    ::SelectObject(GetTempDC(), old);
+#else
+    if(_pCanvas && Bitmap.IsDefined()) {
+        _pCanvas->Copy(x, y, cx, cy, Bitmap, 0, 0);
+    }
+#endif    
+}
+
 void LKSurface::DrawBitmap(const int x, const int y, const int cx, const int cy, const LKBitmap& Bitmap) {
 #ifdef WIN32
     HGDIOBJ old = ::SelectObject(GetTempDC(), (HBITMAP) Bitmap);
@@ -207,7 +223,6 @@ void LKSurface::DrawBitmap(const int x, const int y, const int cx, const int cy,
     if(_pCanvas && Bitmap.IsDefined()) {
         _pCanvas->CopyOr(x, y, cx, cy, Bitmap, 0, 0);
     }
-    
 #endif    
 }
 
@@ -437,12 +452,14 @@ bool LKSurface::TransparentCopy(int xoriginDest, int yoriginDest, int wDest, int
 }
 
 // for each white pixel in the mask, do nothing (NOP), and for each black pixel, do a Copy.
-bool LKSurface::CopyWithMask(int nXDest, int nYDest, int nWidth, int nHeight, const LKSurface& hdcSrc, int nXSrc, int nYSrc, const LKBitmap& bmpMask, int xMask, int yMask) {
+bool LKSurface::CopyWithMask(int nXDest, int nYDest, int nWidth, int nHeight, const LKSurface& hdcSrc, int nXSrc, int nYSrc, const LKBitmapSurface& bmpMask, int xMask, int yMask) {
 #ifdef WIN32
     return ::MaskBlt(*this, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc, bmpMask, xMask, yMask, MAKEROP4(SRCAND,  0x00AA0029));
 #else
-#warning "CopyWithMask not implemented, needed for Airspace transparent Border"
-    return false;
+    Canvas& buffer = hdcSrc;
+    buffer.CopyNotOr(nXDest, nYDest, nWidth, nHeight, bmpMask, xMask, yMask);
+    _pCanvas->Copy(nXDest, nYDest, nWidth, nHeight, buffer, nXSrc, nYSrc);
+    return true;
 #endif
 }
 
@@ -460,50 +477,64 @@ bool LKSurface::AlphaBlendSupported() {
         AlphaBlendF = (TAlphaBlendF) GetProcAddress(GetModuleHandle(TEXT("coredll.dll")), TEXT("AlphaBlend"));        
         bInit = true;
     }
-    return (AlphaBlendF != NULL);
-#else
-    // always supported on all other platform.
+#endif
+    // always supported on all.
     return true;
-#endif    
 }
 
 bool LKSurface::AlphaBlend(const RECT& dstRect, const LKSurface& Surface, const RECT& srcRect, uint8_t globalOpacity) {
     if(!AlphaBlendSupported()) {
         return false;
     }
-    
-#ifdef WIN32
-  //BLENDFUNCTION bf = { AC_SRC_OVER, 0, globalOpacity, AC_SRC_ALPHA };
-  // we are not using per-pixel alpha, so do not use AC_SRC_ALPHA flag
-  BLENDFUNCTION bf = { AC_SRC_OVER, 0, globalOpacity, 0 };
-#ifdef UNDER_CE
-  static unsigned failedCount = 0;
-  static bool Success = false;
-  
-  bool bOK = AlphaBlendF(
-    *this, dstRect.left, dstRect.top, dstRect.right - dstRect.left, dstRect.bottom - dstRect.top,
-    Surface, srcRect.left, srcRect.top, srcRect.right - srcRect.left, srcRect.bottom - srcRect.top, bf);
-  
-  if(!Success) {
-      if(!bOK && dstRect.right - dstRect.left > 0 &&
-                 dstRect.bottom - dstRect.top > 0 &&
-                 srcRect.right - srcRect.left > 0 &&
-                 srcRect.bottom - srcRect.top > 0) {
 
-          // after more 10 consecutive failed, we assume AlphaBlend is not supported, don't use it anymore
-          ++failedCount;
-          if(failedCount>10) {
-              AlphaBlendF = NULL;
-          }
-       }
-       Success = bOK;
-  }
-  return bOK;
-  
+#ifdef WIN32
+#ifdef UNDER_CE
+
+    extern BOOL DoAlphaBlend_internal(HDC,int,int,int,int,HDC,int,int,int,int, DWORD);
+
+    static unsigned failedCount = 0;
+    static bool Success = false;
+
+    bool bOK = false;
+    if (AlphaBlendF) {
+        //BLENDFUNCTION bf = { AC_SRC_OVER, 0, globalOpacity, AC_SRC_ALPHA };
+        // we are not using per-pixel alpha, so do not use AC_SRC_ALPHA flag
+        BLENDFUNCTION bf = {AC_SRC_OVER, 0, globalOpacity, 0};
+        bOK = AlphaBlendF(
+                *this, dstRect.left, dstRect.top, dstRect.right - dstRect.left, dstRect.bottom - dstRect.top,
+                Surface, srcRect.left, srcRect.top, srcRect.right - srcRect.left, srcRect.bottom - srcRect.top, bf);
+
+        if (!Success) {
+            if (!bOK && dstRect.right - dstRect.left > 0 &&
+                    dstRect.bottom - dstRect.top > 0 &&
+                    srcRect.right - srcRect.left > 0 &&
+                    srcRect.bottom - srcRect.top > 0) {
+
+                // after more 10 consecutive failed, we assume AlphaBlend is not supported, don't use it anymore
+                ++failedCount;
+                if (failedCount > 10) {
+                    AlphaBlendF = NULL;
+                }
+            }
+            Success = bOK;
+        }
+    }
+
+    if (bOK) {
+        bOK = DoAlphaBlend_internal(
+                *this, dstRect.left, dstRect.top, dstRect.right - dstRect.left, dstRect.bottom - dstRect.top,
+                Surface, srcRect.left, srcRect.top, srcRect.right - srcRect.left, srcRect.bottom - srcRect.top, globalOpacity);
+    }
+
+    return bOK;
+
 #else
+    //BLENDFUNCTION bf = { AC_SRC_OVER, 0, globalOpacity, AC_SRC_ALPHA };
+    // we are not using per-pixel alpha, so do not use AC_SRC_ALPHA flag
+    BLENDFUNCTION bf = {AC_SRC_OVER, 0, globalOpacity, 0};
     ::AlphaBlend(*this, dstRect.left, dstRect.top, dstRect.right - dstRect.left, dstRect.bottom - dstRect.top,
-                        Surface, srcRect.left, srcRect.top, srcRect.right - srcRect.left, srcRect.bottom - srcRect.top, bf);          
-    
+            Surface, srcRect.left, srcRect.top, srcRect.right - srcRect.left, srcRect.bottom - srcRect.top, bf);
+
     return true; // always return true because always implemented on Windows PC
 #endif
 #else
@@ -516,7 +547,17 @@ bool LKSurface::AlphaBlend(const RECT& dstRect, const LKSurface& Surface, const 
 #endif    
 }
 
+#ifdef USE_MEMORY_CANVAS
+void LKSurface::AlphaBlendNotWhite(const RECT& dstRect, const LKSurface& Surface, const RECT& srcRect, uint8_t globalOpacity) {
+    if(_pCanvas) {
+        _pCanvas->AlphaBlendNotWhite(dstRect.left, dstRect.top, dstRect.right - dstRect.left, dstRect.bottom - dstRect.top,
+                        Surface, srcRect.left, srcRect.top, srcRect.right - srcRect.left, srcRect.bottom - srcRect.top, globalOpacity);
+    }
+}
+#endif    
+
 bool LKSurface::GetTextSize(const TCHAR* lpString, int cbString, SIZE* lpSize) {
+	LKASSERT(cbString <= (int)_tcslen(lpString));
 #ifdef WIN32
     return ::GetTextExtentPoint(*this, lpString, cbString, lpSize);
 #else
@@ -528,12 +569,19 @@ bool LKSurface::GetTextSize(const TCHAR* lpString, int cbString, SIZE* lpSize) {
 #endif    
 }
 
-void LKSurface::DrawText(int X, int Y, const TCHAR* lpString, UINT cbCount) {
+void LKSurface::DrawText(int X, int Y, const TCHAR* lpString, UINT cbCount, RECT* ClipRect) {
 #ifdef WIN32
-    ::ExtTextOut(*this, X, Y, ETO_OPAQUE, NULL, lpString, cbCount, NULL);
+    ::ExtTextOut(*this, X, Y,ETO_CLIPPED, ClipRect, lpString, cbCount, NULL);
 #else
     if(_pCanvas) {
-        _pCanvas->DrawText(X, Y, lpString, cbCount);
+        if(ClipRect) {
+            SubCanvas ClipCanvas(*_pCanvas, (*ClipRect).GetOrigin(), (*ClipRect).GetSize());
+            const RasterPoint offset = (*ClipRect).GetOrigin();
+            ClipCanvas.DrawText(X-offset.x, Y-offset.y, lpString, cbCount);
+
+        } else {
+            _pCanvas->DrawText(X, Y, lpString, cbCount);
+        }
     }    
 #endif    
 }
@@ -704,18 +752,17 @@ bool LKSurface::Circle(long x, long y, int radius, const RECT& rc, bool clip, bo
     buildCircle((POINT){x,y}, radius, CirclePt);
       
     if (clip) {
-        std::vector<POINT> CirclePt_clipped;
-        CirclePt_clipped.reserve(CirclePt.size());
-
-        LKGeom::ClipPolygon(rc, CirclePt, CirclePt_clipped);
-
-        CirclePt = std::move(CirclePt_clipped);
-    }
-
-    if (fill) {
-        Polygon(CirclePt.data(), CirclePt.size());
+        if (fill) {
+            Polygon(CirclePt.data(), CirclePt.size(), rc);
+        } else {
+            Polyline(CirclePt.data(), CirclePt.size(), rc);
+        }
     } else {
-        Polyline(CirclePt.data(), CirclePt.size());
+        if (fill) {
+            Polygon(CirclePt.data(), CirclePt.size());
+        } else {
+            Polyline(CirclePt.data(), CirclePt.size());
+        }
     }
     return true;
 }

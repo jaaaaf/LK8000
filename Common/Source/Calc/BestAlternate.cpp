@@ -12,7 +12,7 @@
 #include "RasterTerrain.h"
 #include "Calculations2.h"
 #include "Message.h"
-
+#include "Sound/Sound.h"
 
 extern void LatLon2Flat(double lon, double lat, int *scx, int *scy);
 extern int CalculateWaypointApproxDistance(int scx_aircraft, int scy_aircraft, int i);
@@ -25,9 +25,9 @@ extern void RemoveRecentList(int newwp);
 /*
  * Search for the best landing option
  */
-#ifdef DEBUG
-#define DEBUG_BESTALTERNATE
-#endif
+
+// #define DEBUG_BESTALTERNATE // DO NOT USE ON LINUX, %S PROBLEM
+
 #define MAXBEST 10      // max number of reachable landing points searched for, 
 			// among a preliminar list of MAXBEST * 2 - CPU HOGGING ALERT!
 

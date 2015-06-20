@@ -117,7 +117,7 @@ GetTaskSectorParameter( TaskIdx, &SecType,&SecRadius);
 
                 int radius = width-2;
                 Surface.CircleNoCliping(center_x, center_y, radius, rc, true);
-                const auto prevPen = Surface.SelectObject(hpTerrainLine);
+                const auto prevPen = Surface.SelectObject(LK_BLACK_PEN);
                 for( int i = 1; i < 4 && radius > (width/5); ++i) {
                     Surface.CircleNoCliping(center_x, center_y, radius -= width/5, rc, true);
                 }
@@ -139,7 +139,7 @@ void MapWindow::DrawTask(LKSurface& Surface, const RECT& rc, const POINT &Orig_A
     double tmp;
 
     LKColor whitecolor = RGB_WHITE;
-    LKColor origcolor = hDCTempTask.SetTextColor(whitecolor);
+    LKColor origcolor = Surface.SetTextColor(whitecolor);
 
     static short size_tasklines=0;
 
@@ -354,7 +354,7 @@ DoInit[MDI_DRAWTASK]=false;
     }
 
     // restore original color
-    hDCTempTask.SetTextColor(origcolor);
+    Surface.SetTextColor(origcolor);
     Surface.SelectObject(oldpen);
     Surface.SelectObject(oldbrush);
 }

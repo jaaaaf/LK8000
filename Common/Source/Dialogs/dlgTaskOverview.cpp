@@ -134,6 +134,9 @@ static void OnTaskPaintListItem(WindowControl * Sender, LKSurface& Surface){
     }
 
   } else {
+      
+    Surface.SetTextColor(RGB_BLACK);      
+      
      // if (DrawListIndex==n) { // patchout 091126
      if (DrawListIndex==n && UpLimit < MAXTASKPOINTS) { // patch 091126
 
@@ -144,7 +147,7 @@ static void OnTaskPaintListItem(WindowControl * Sender, LKSurface& Surface){
 
       if (!AATEnabled || ISPARAGLIDER) {
 	// LKTOKEN  _@M735_ = "Total:" 
-	_stprintf(sTmp, gettext(TEXT("_@M735_")));
+	_tcscpy(sTmp, gettext(TEXT("_@M735_")));
 	Surface.DrawText(Sender->GetHeight()+2*ScreenScale, TextMargin, sTmp, _tcslen(sTmp));
       
 	if (fai_ok) {
@@ -298,6 +301,7 @@ static void OnTaskListEnter(WindowControl * Sender,
 			LockTaskData();
             ResetTaskWaypoint(ItemIndex);
 			Task[ItemIndex].Index = res;
+            Task[ItemIndex].PGConeBase = WayPointList[res].Altitude;
 
 			UnlockTaskData();
 //			wf->SetModalResult(mrOK);
@@ -654,7 +658,7 @@ void dlgTaskOverviewShowModal(int Idx){
 
   wp = (WndProperty*)wf->FindByName(TEXT("prpFile"));
   if (wp) {
-    wp->Hide();  
+    wp->SetVisible(false);  
 	DataFieldFileReader* dfe;
 	dfe = (DataFieldFileReader*)wp->GetDataField();
 

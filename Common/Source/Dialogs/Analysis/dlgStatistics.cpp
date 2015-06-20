@@ -12,6 +12,7 @@
 #include "WindowControls.h"
 #include "ContestMgr.h"
 #include "dlgTools.h"
+#include "Event/Event.h"
 
 double Statistics::yscale;
 double Statistics::xscale;
@@ -87,7 +88,7 @@ static void OnAnalysisPaint(WindowControl * Sender, LKSurface& Surface){
     else
       Surface.SetTextColor(RGB_WHITE);
 
-  Surface.SetBackgroundTransparent();
+    Surface.SetBackgroundTransparent();
 //  SetTextColor(hDC, Sender->GetForeColor());
 //  SetTextColor(hDC, Sideview_TextColor);
 
@@ -179,12 +180,12 @@ static bool FormKeyDown(Window* pWnd, unsigned KeyCode) {
     Window * pBtn = NULL;
 
     switch (KeyCode & 0xffff) {
-        case VK_LEFT:
+        case KEY_LEFT:
         case '6':
             pBtn = wfa->FindByName(TEXT("cmdPrev"));
             NextPage(-1);
             break;
-        case VK_RIGHT:
+        case KEY_RIGHT:
         case '7':
             pBtn = wfa->FindByName(TEXT("cmdNext"));
             NextPage(+1);

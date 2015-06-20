@@ -35,6 +35,7 @@ OEXTERN	LKBrush	LKBrush_Mdark;
 OEXTERN	LKBrush  LKBrush_Mlight;
 OEXTERN	LKBrush	LKBrush_Red;
 OEXTERN	LKBrush	LKBrush_Yellow;
+OEXTERN	LKBrush	LKBrush_LightYellow;
 OEXTERN	LKBrush	LKBrush_Green;
 OEXTERN	LKBrush	LKBrush_DarkYellow2;
 OEXTERN	LKBrush	LKBrush_Orange;
@@ -60,6 +61,10 @@ OEXTERN LKBrush	LKBrush_Vario_pos1 ;
 OEXTERN LKBrush	LKBrush_Vario_pos2 ;
 OEXTERN LKBrush	LKBrush_Vario_pos3 ;
 OEXTERN LKBrush	LKBrush_Vario_pos4 ;
+
+// Contextual LKBrush
+OEXTERN	LKBrush	LKBrush_Higlighted;
+OEXTERN	LKBrush	LKBrush_FormBackGround; // default Form Background
 
 OEXTERN	LKPen	LKPen_Black_N0;
 OEXTERN	LKPen	LKPen_Black_N1;

@@ -14,17 +14,12 @@
 #include "LKObjects.h"
 #include "RGB.h"
 #include "Multimap.h"
-
-#if (WINDOWSPC>0)
-#include <wingdi.h>
-#endif
-
 #include <string.h>
 
 MapWaypointLabel_t MapWaypointLabelList[200]; 
 MapWaypointLabel_t* SortedWaypointLabelList[200]; 
 
-int MapWaypointLabelListCount=0;
+size_t MapWaypointLabelListCount=0;
 
 
 inline bool MapWaypointLabelListCompare(const MapWaypointLabel_t* elem1, const MapWaypointLabel_t* elem2 ){
@@ -37,26 +32,10 @@ void MapWaypointLabelAdd(const TCHAR *Name, const int X, const int Y,
 			 const TextInBoxMode_t *Mode, 
 			 const int AltArivalAGL, const bool inTask, const bool isLandable, const bool isAirport, 
 			 const bool isExcluded,  const int index, const short style){
-  MapWaypointLabel_t *E;
 
-  static int xLeft,xRight,yTop,yBottom, labelListSize;
+  if (MapWaypointLabelListCount >= array_size(MapWaypointLabelList)-1) return;
 
-  if (DoInit[MDI_MAPWPLABELADD]) {
-	xLeft=MapWindow::MapRect.left-WPCIRCLESIZE;
-	xRight=MapWindow::MapRect.right+(WPCIRCLESIZE*3);
-	yTop=MapWindow::MapRect.top-WPCIRCLESIZE;
-	yBottom=MapWindow::MapRect.bottom+WPCIRCLESIZE;
-
-	labelListSize=(signed int)(sizeof(MapWaypointLabelList)/sizeof(MapWaypointLabel_t))-1;
-
-	DoInit[MDI_MAPWPLABELADD]=false;
-  }
-
-  if ((X<xLeft) || (X>xRight) || (Y<yTop) || (Y>yBottom)) return;
-
-  if (MapWaypointLabelListCount >= labelListSize) return;
-
-  E = &MapWaypointLabelList[MapWaypointLabelListCount];
+  MapWaypointLabel_t* E = &MapWaypointLabelList[MapWaypointLabelListCount];
 
   _tcscpy(E->Name, Name);
   E->Pos.x = X;
@@ -217,6 +196,12 @@ void MapWindow::DrawWaypointsNew(LKSurface& Surface, const RECT& rc)
 
   if (foundairport==0 && bestwp>=0)  arrivalcutoff = (int)WayPointList[bestwp].AltArivalAGL;
 
+  const RECT ClipRect = {
+      rc.left-WPCIRCLESIZE,
+      rc.top-WPCIRCLESIZE,
+      rc.right+(WPCIRCLESIZE*3),
+      rc.bottom+WPCIRCLESIZE
+  };
 
   for(i=0;i<WayPointList.size();i++) {
 
@@ -474,10 +459,7 @@ void MapWindow::DrawWaypointsNew(LKSurface& Surface, const RECT& rc)
 		}
 		break;
 
-	      default:
-#if (WINDOWSPC<1)
-		//ASSERT(0);
-#endif
+          default:
 		break;
 
 	      } // end intask/irange/dowrite
@@ -503,15 +485,23 @@ void MapWindow::DrawWaypointsNew(LKSurface& Surface, const RECT& rc)
 		}
 
 
-	      if (dowrite) { 
-          MapWaypointLabelAdd(
-                  Buffer,
-                  WayPointList[i].Screen.x+5,
-                  WayPointList[i].Screen.y,
-                  &TextDisplayMode,
-                  (int)(WayPointList[i].AltArivalAGL*ALTITUDEMODIFY),
-                  intask,islandable,isairport,excluded,i,WayPointList[i].Style);
-	      }
+          if (dowrite) {
+            const POINT LabelPos = {
+                WayPointList[i].Screen.x + 5,
+                WayPointList[i].Screen.y
+            };
+
+            if (PtInRect(&ClipRect, LabelPos)) {
+
+                MapWaypointLabelAdd(
+                        Buffer,
+                        WayPointList[i].Screen.x + 5,
+                        WayPointList[i].Screen.y,
+                        &TextDisplayMode,
+                        (int) (WayPointList[i].AltArivalAGL * ALTITUDEMODIFY),
+                        intask, islandable, isairport, excluded, i, WayPointList[i].Style);
+            }
+          }
 	    } // end if intask
       
 	     { ; }
@@ -557,7 +547,7 @@ void MapWindow::DrawWaypointsNew(LKSurface& Surface, const RECT& rc)
 
   // now draw normal waypoints in order of range (furthest away last)
   // without writing over each other (or the task ones)
-  for (int j=0; j<MapWaypointLabelListCount; j++) {
+  for (size_t j=0; j<MapWaypointLabelListCount; j++) {
     MapWaypointLabel_t *E = SortedWaypointLabelList[j];
 
     if (!E->inTask && !E->isLandable ) {
@@ -688,11 +678,11 @@ void MapWindow::DrawWaypointPictoBg(LKSurface& Surface, const RECT& rc) {
     if (UseHiresBitmap) {
         x -= 100 / 2;
         y -= 100 / 2;
-        Surface.DrawBitmap(x, y, 100, 100, hLKPictori);
+        Surface.DrawBitmapCopy(x, y, 100, 100, hLKPictori);
     } else {
         x -= 45 / 2;
         y -= 45 / 2;
-        Surface.DrawBitmap(x, y, IBLSCALE(45), IBLSCALE(45), hLKPictori);
+        Surface.DrawBitmapCopy(x, y, IBLSCALE(45), IBLSCALE(45), hLKPictori);
     }
 }
 

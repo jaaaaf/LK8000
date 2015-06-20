@@ -33,6 +33,7 @@ void SettingsEnter() {
   LANGUAGEFILECHANGED = FALSE;
   INPUTFILECHANGED = FALSE;
   COMPORTCHANGED = FALSE;
+  FONTSCHANGED = false;
 }
 
 
@@ -71,7 +72,6 @@ void SettingsLeave() {
 	RasterTerrain::OpenTerrain();
 	// NO! We dont reload waypoints on terrain change.
 	// SetHome(WAYPOINTFILECHANGED==TRUE);
-	RasterTerrain::ServiceFullReload(GPS_INFO.Latitude, GPS_INFO.Longitude);
 	MapWindow::ForceVisibilityScan = true;
   }
 
@@ -141,6 +141,11 @@ void SettingsLeave() {
       ) {
 	CloseProgressDialog();
 	MainWindow.SetFocus();
+  }
+
+  extern void ReinitScreen(void);
+  if (FONTSCHANGED) {
+      ReinitScreen();
   }
   
   UnlockTaskData();

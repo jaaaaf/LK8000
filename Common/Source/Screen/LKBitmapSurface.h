@@ -26,15 +26,15 @@ public:
 
     virtual void Resize(unsigned width, unsigned height);
 
+#ifdef WIN32
     operator LKBitmap& () { return _hBitmap; }
 
-#ifdef WIN32
-    operator HBITMAP () { return _hBitmap; }
-#endif
+    operator HBITMAP () const { return _hBitmap; }
     
 protected:
     LKBitmap _hBitmap;
     LKBitmap _oldBitmap;
+#endif
 };
 
 class LKMaskBitmapSurface : public LKBitmapSurface {

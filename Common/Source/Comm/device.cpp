@@ -32,6 +32,8 @@ using namespace std::placeholders;
 //  of deadlock.  So, FlightData must never be locked after Comm.  Ever.
 //  Thankfully WinCE "critical sections" are recursive locks.
 
+// this lock is used for protect DeviceList array.
+Poco::Mutex  CritSec_Comm;
 
 COMMPort_t COMMPort;
 
@@ -44,6 +46,14 @@ DeviceDescriptor_t *pDevPrimaryBaroSource=NULL;
 DeviceDescriptor_t *pDevSecondaryBaroSource=NULL;
 
 int DeviceRegisterCount = 0;
+
+void LockComm() {
+  CritSec_Comm.lock();
+}
+
+void UnlockComm() {
+  CritSec_Comm.unlock();
+}
 
 static BOOL FlarmDeclare(PDeviceDescriptor_t d, Declaration_t *decl, unsigned errBufferLen, TCHAR errBuffer[]);
 static void devFormatNMEAString(TCHAR *dst, size_t sz, const TCHAR *text);
@@ -139,7 +149,7 @@ void RefreshComPortList() {
         COMMPort.push_back(szPort);
     }
 
-#if (WINDOWSPC>0)
+#ifndef UNDER_CE
     for (unsigned i = 10; i < 41; ++i) {
         _stprintf(szPort, _T("COM%u"), i);
         COMMPort.push_back(szPort);
@@ -165,21 +175,30 @@ void RefreshComPortList() {
   }
   if (n != -1){
     for (int i = 0; i < n; ++i) {
+      bool portok = true;
       if (memcmp(namelist[i]->d_name, "tty", 3) == 0) {
         // filter out "/dev/tty0", ... (valid integer after "tty") 
         char *endptr;
         strtoul(namelist[i]->d_name + 3, &endptr, 10);
-        if (*endptr == 0) continue;
-      } else if (memcmp(namelist[i]->d_name, "rfcomm", 6) != 0)
-        continue;
+        if (*endptr == 0) {
+          portok = false;
+        }
+      } else if ( (memcmp(namelist[i]->d_name, "rfcomm", 6) != 0) 
+                  && (memcmp(namelist[i]->d_name, "tnt", 3) != 0) ){
+        // '/dev/tntX' are tty0tty virtual port  
+        portok = false;
+      }
+      if(portok) {
         char path[64];
         snprintf(path, sizeof(path), "/dev/%s", namelist[i]->d_name);
         if (access(path, R_OK|W_OK) == 0 && access(path, X_OK) < 0) {
           COMMPort.push_back(path);
         }
-      } 
-     }    
-    free(namelist);
+      }
+      free(namelist[i]);
+    } 
+  }    
+  free(namelist);
   
 #endif
     
@@ -193,6 +212,11 @@ void RefreshComPortList() {
         );
     }
 #endif
+    
+    if(COMMPort.empty()) {
+        // avoid segfault on device config  dialog if no comport detected.
+        COMMPort.push_back(_T("Null"));
+    }
 }
 
 void DeviceDescriptor_t::InitStruct(int i) {
@@ -241,6 +265,36 @@ bool ReadPortSettings(int idx, LPTSTR szPort, DWORD *SpeedIndex, DWORD *Bit1Inde
             return false;
     }
 }
+
+void RestartCommPorts() {
+
+    StartupStore(TEXT(". RestartCommPorts begin @%s%s"), WhatTimeIsIt(), NEWLINE);
+
+    LockComm();
+    /* 29/10/2013 : 
+     * if RxThread wait for LockComm, It never can terminate -> Dead Lock
+     *  can appen at many time when reset comport is called ....
+     *    devRequestFlarmVersion called by NMEAParser::PFLAU is first exemple
+     * 
+     * in fact if it appens, devClose() kill RxThread after 20s timeout...
+     *  that solve the deadlock, but thread is not terminated correctly ...
+     * 
+     * Bruno.
+     */
+    devClose(devA());
+    devClose(devB());
+
+    NMEAParser::Reset();
+
+    devInit(TEXT(""));
+
+    UnlockComm();
+#if TESTBENCH
+    StartupStore(TEXT(". RestartCommPorts end @%s%s"), WhatTimeIsIt(), NEWLINE);
+#endif
+
+}
+
 
 BOOL devInit(LPCTSTR CommandLine) {
     TCHAR DeviceName[DEVNAMESIZE + 1];

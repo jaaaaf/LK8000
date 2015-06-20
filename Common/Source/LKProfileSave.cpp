@@ -10,9 +10,8 @@
 #include "McReady.h"
 #include "Modeltype.h"
 #include "utils/stringext.h"
-
-
 #include "LKProfiles.h"
+#include "Asset.hpp"
 
 
 static FILE *pfp=NULL;
@@ -207,9 +206,17 @@ void LKProfileSave(const TCHAR *szFile)
   rprintf(szRegistryFinishLine,FinishLine);
   rprintf(szRegistryFinishMinHeight,FinishMinHeight); // saved *1000, /1000 when used
   rprintf(szRegistryFinishRadius,FinishRadius);
-  rprintf(szRegistryFontMapLabelFont,FontDesc_MapLabel);
-  rprintf(szRegistryFontMapWindowFont,FontDesc_MapWindow);
   rprintf(szRegistryFontRenderer,FontRenderer);
+
+  rprintf(szRegistryFontMapWaypoint,FontMapWaypoint);
+  rprintf(szRegistryFontMapTopology,FontMapTopology);
+  rprintf(szRegistryFontInfopage1L,FontInfopage1L);
+  rprintf(szRegistryFontInfopage2L,FontInfopage2L);
+  rprintf(szRegistryFontBottomBar,FontBottomBar);
+  rprintf(szRegistryFontOverlayBig,FontOverlayBig);
+  rprintf(szRegistryFontOverlayMedium,FontOverlayMedium);
+  rprintf(szRegistryFontCustom1,FontCustom1);
+
   rprintf(szRegistryGlideBarMode,GlideBarMode);
   rprintf(szRegistryGliderScreenPosition,MapWindow::GliderScreenPosition);
   rprintf(szRegistryGpsAltitudeOffset,GPSAltitudeOffset);
@@ -255,6 +262,7 @@ void LKProfileSave(const TCHAR *szFile)
   rprintf(szRegistryOutlinedTp,OutlinedTp_Config);
   rprintf(szRegistryOverColor,OverColor);
   rprintf(szRegistryOverlayClock,OverlayClock);
+  rprintf(szRegistryUseTwoLines,UseTwoLines);
   rprintf(szRegistryOverlaySize,OverlaySize);
   rprintf(szRegistryPGAutoZoomThreshold,PGAutoZoomThreshold);
   rprintf(szRegistryPGClimbZoom,PGClimbZoom);
@@ -276,6 +284,7 @@ void LKProfileSave(const TCHAR *szFile)
 //  rprintf(szRegistrySafteySpeed,SAFTEYSPEED*1000); // m/s x1000
   rprintf(szRegistrySectorRadius,SectorRadius);
   rprintf(szRegistrySetSystemTimeFromGPS,SetSystemTimeFromGPS);
+  rprintf(szRegistrySaveRuntime,SaveRuntime);
   rprintf(szRegistryShading,Shading_Config);
   rprintf(szRegistrySnailTrail,TrailActive_Config);
   rprintf(szRegistrySnailWidthScale,MapWindow::SnailWidthScale);
@@ -301,7 +310,6 @@ void LKProfileSave(const TCHAR *szFile)
   rprintf(szRegistryTrackBar,TrackBar);
   rprintf(szRegistryTrailDrift,EnableTrailDrift_Config);
   rprintf(szRegistryUTCOffset,UTCOffset);
-  rprintf(szRegistryUseCustomFonts,UseCustomFonts);
 //  rprintf(szRegistryUseGeoidSeparation,UseGeoidSeparation);
   rprintf(szRegistryUseUngestures,UseUngestures);
   rprintf(szRegistryUseTotalEnergy,UseTotalEnergy_Config);
@@ -314,7 +322,9 @@ void LKProfileSave(const TCHAR *szFile)
   for(int i=0;i<AIRSPACECLASSCOUNT;i++) {
 	rprintf(szRegistryAirspaceMode[i],MapWindow::iAirspaceMode[i]);
 	rprintf(szRegistryColour[i],MapWindow::iAirspaceColour[i]);
+#ifdef HAVE_HATCHED_BRUSH
 	rprintf(szRegistryBrush[i],MapWindow::iAirspaceBrush[i]);
+#endif
   }
 
 
@@ -323,6 +333,8 @@ void LKProfileSave(const TCHAR *szFile)
   //
   // Multimaps added 121003
   //
+
+ if (SaveRuntime) {
   rprintf(szRegistryMultiTerr0,Multimap_Flags_Terrain[MP_MOVING]);
   rprintf(szRegistryMultiTerr1,Multimap_Flags_Terrain[MP_MAPTRK]);
   rprintf(szRegistryMultiTerr2,Multimap_Flags_Terrain[MP_MAPWPT]);
@@ -369,33 +381,40 @@ void LKProfileSave(const TCHAR *szFile)
   rprintf(szRegistryMultiSizeY2,Multimap_SizeY[MP_MAPWPT]);
   rprintf(szRegistryMultiSizeY3,Multimap_SizeY[MP_MAPASP]);
   rprintf(szRegistryMultiSizeY4,Multimap_SizeY[MP_VISUALGLIDE]);
+ }
 
   rprintf(szRegistryMultimap1,Multimap1);
   rprintf(szRegistryMultimap2,Multimap2);
   rprintf(szRegistryMultimap3,Multimap3);
   rprintf(szRegistryMultimap4,Multimap4);
 
+ if (SaveRuntime) {
   rprintf(szRegistryMMNorthUp1,MMNorthUp_Runtime[0]);
   rprintf(szRegistryMMNorthUp2,MMNorthUp_Runtime[1]);
   rprintf(szRegistryMMNorthUp3,MMNorthUp_Runtime[2]);
   rprintf(szRegistryMMNorthUp4,MMNorthUp_Runtime[3]);
+ }
 
   rprintf(szRegistryAspPermanent  ,AspPermanentChanged);
   rprintf(szRegistryFlarmDirection,iFlarmDirection);
+ if (SaveRuntime) {
   rprintf(szRegistryDrawTask      ,Flags_DrawTask);
   rprintf(szRegistryDrawFAI       ,Flags_DrawFAI);
+ }
   rprintf(szRegistryGearMode      ,GearWarningMode);
   rprintf(szRegistryGearAltitude  ,GearWarningAltitude);
   rprintf(szRegistryBigFAIThreshold,FAI28_45Threshold);
-  rprintf(szRegistryBottomMode    ,BottomMode);
+  if (SaveRuntime) rprintf(szRegistryBottomMode    ,BottomMode);
   rprintf(szRegistrySonarWarning    ,SonarWarning_Config);
 
-#if (WINDOWSPC>0)
-  rprintf(szRegistryScreenSize   ,ScreenSize);
-  rprintf(szRegistryScreenSizeX  ,ScreenSizeX);
-  rprintf(szRegistryScreenSizeY  ,ScreenSizeY);
-#endif
-
+  #if SAVESCREEN
+  extern bool CommandResolution;
+  if(!IsEmbedded() && !CommandResolution) {
+    rprintf(szRegistryScreenSize   ,ScreenSize);
+    rprintf(szRegistryScreenSizeX  ,ScreenSizeX);
+    rprintf(szRegistryScreenSizeY  ,ScreenSizeY);
+  }
+  #endif
 
   fprintf(pfp,PNEWLINE); // end of file
   fflush(pfp);
@@ -539,6 +558,9 @@ void LKDeviceSave(const TCHAR *szFile)
 
   rprintf(szRegistryBit1Index,dwBit1Index);
   rprintf(szRegistryBit2Index,dwBit2Index);
+
+  rprintf(szRegistryUseExtSound1,UseExtSound1);
+  rprintf(szRegistryUseExtSound2,UseExtSound2);
 
   rprintf(szRegistryUseGeoidSeparation,UseGeoidSeparation);
   rprintf(szRegistryPollingMode,PollingMode);

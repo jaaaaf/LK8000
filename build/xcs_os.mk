@@ -1,13 +1,19 @@
 # OS Library imported from xcsoar
 
 XCS_OS_LINUX := \
-	$(SRC)/OS/Linux/CpuLoad.cpp \
-	$(SRC)/OS/Linux/Memory.cpp \
-	$(SRC)/OS/Linux/RotateScreen.cpp\
-	\
 	$(SRC)/xcs/OS/EventPipe.cpp\
 	$(SRC)/xcs/OS/FileDescriptor.cpp\
 	$(SRC)/xcs/OS/Poll.cpp\
+	$(SRC)/xcs/OS/FileUtil.cpp\
+	$(SRC)/xcs/OS/Poll.cpp\
+	$(SRC)/xcs/OS/Process.cpp\
+	$(SRC)/xcs/OS/PathName.cpp\
+	\
+	$(SRC)/xcs/IO/FileSource.cpp\
+	$(SRC)/xcs/IO/InflateLineReader.cpp \
+	$(SRC)/xcs/IO/InflateSource.cpp \
+	$(SRC)/xcs/IO/LineSplitter.cpp \
+
 
 XCS_OS := \
 	$(SRC)/xcs/OS/Clock.cpp\

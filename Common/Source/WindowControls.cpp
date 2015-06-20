@@ -25,6 +25,10 @@
 #include "Event/Event.h"
 #include "Asset.hpp"
 
+#ifndef USE_GDI
+#include "Screen/SubCanvas.hpp"
+#endif
+
 using std::placeholders::_1;
 
 
@@ -1128,7 +1132,7 @@ void InitWindowControlModule(void);
 static LKColor bkColor = RGB_WINBACKGROUND; // PETROL
 static LKColor fgColor = RGB_WINFOREGROUND; // WHITE
 int WindowControl::InstCount=0;
-BrushReference WindowControl::hBrushDefaultBk;
+
 PenReference WindowControl::hPenDefaultBorder;
 PenReference WindowControl::hPenDefaultSelector;
 
@@ -1170,7 +1174,6 @@ WindowControl::WindowControl(WindowControl *Owner, const TCHAR *Name,
   mColorFore = fgColor; // WHITE
 
   if (InstCount == 0){
-	hBrushDefaultBk = LKBrush_Petrol;
 	hPenDefaultBorder = LKPen_White_N1;
 	hPenDefaultSelector = LKPen_Petrol_C2;
   }
@@ -1184,6 +1187,7 @@ WindowControl::WindowControl(WindowControl *Owner, const TCHAR *Name,
   if(mOwner) {
     mOwner->CalcChildRect(mX, mY, mWidth, mHeight);
   }
+  LKASSERT(mX+mWidth>0);
   
   Create(WndOnwer,(RECT){mX, mY, mX+mWidth, mY+mHeight});
   SetTopWnd();
@@ -1191,7 +1195,6 @@ WindowControl::WindowControl(WindowControl *Owner, const TCHAR *Name,
   if (mOwner != NULL)
     mOwner->AddClient(this);  
 
-  mhBrushBk = hBrushDefaultBk;
   mhPenBorder = hPenDefaultBorder;
   mhPenSelector = hPenDefaultSelector;
   mBorderSize = 1;
@@ -1211,7 +1214,10 @@ WindowControl::~WindowControl(void){
 }
 
 void WindowControl::Destroy(void){
-    std::for_each(mClients.begin(), mClients.end(), std::bind(&WindowControl::Destroy, _1));
+    for(WindowControl* pCtrl : mClients) {
+        pCtrl->Destroy();
+        delete pCtrl;
+    }
     mClients.clear();
 
   if (LastFocusControl == this)
@@ -1247,6 +1253,9 @@ void WindowControl::UpdatePosSize(void){
 }
 
 bool WindowControl::OnPaint(LKSurface& Surface, const RECT& Rect) {
+#ifndef USE_GDI
+    Paint(Surface);
+#else
     const RECT Client_Rect = GetClientRect();
 
     int win_width = Client_Rect.right - Client_Rect.left;
@@ -1269,7 +1278,7 @@ bool WindowControl::OnPaint(LKSurface& Surface, const RECT& Rect) {
     }
 */
     Surface.Copy(0, 0, win_width, win_height, MemSurface, 0, 0);
-
+#endif
     return true;
 }
 
@@ -1348,8 +1357,12 @@ void WindowControl::CalcChildRect(int& x, int& y, int& cx, int& cy) const {
     if (cx<0) {
         cx = GetWidth() - x + cx;
     }
-    assert(cx>0);
-    assert(cy>0);
+    // negative value for cy is bottom margin relative to parent;
+    if (cy<0) {
+        cy = GetHeight() - y + cy;
+    }
+    LKASSERT(cx>0);
+    LKASSERT(cy>0);
 }
 
 void WindowControl::AddClient(WindowControl *Client) {
@@ -1458,7 +1471,6 @@ LKColor WindowControl::SetBackColor(const LKColor& Value){
   if (mColorBack != Value){
 	mColorBack = Value;
 	mBrushBk.Create(mColorBack);
-	mhBrushBk = mBrushBk;
 	if (IsVisible()){
         Redraw();
 	}
@@ -1545,13 +1557,13 @@ void WindowControl::Paint(LKSurface& Surface) {
     rc.right += 2;
     rc.bottom += 2;
 
-    Surface.FillRect(&rc, mhBrushBk);
+    Surface.FillRect(&rc, GetBackBrush());
 
     // JMW added highlighting, useful for lists
     if (!mDontPaintSelector && mCanFocus && HasFocus()) {
         rc.right -= 2;
         rc.bottom -= 2;
-        Surface.FillRect(&rc, LKBrush_DarkYellow2);
+        Surface.FillRect(&rc, LKBrush_Higlighted);
     }
     PaintBorder(Surface);
     PaintSelector(Surface);
@@ -1641,10 +1653,6 @@ WndForm::WndForm(const TCHAR *Name, const TCHAR *Caption,
 
   mhBrushTitle = LKBrush_Black; // 101204
 
-  mClientWindow = new WindowControl(this, TEXT(""), 20, 20, Width, Height);
-  mClientWindow->SetBackColor(RGB_WINBACKGROUND);
-  mClientWindow->SetCanFocus(false);
-
   mClientRect.top=0;
   mClientRect.left=0;
   mClientRect.bottom=Width;
@@ -1654,12 +1662,26 @@ WndForm::WndForm(const TCHAR *Name, const TCHAR *Caption,
   mTitleRect.left=0;
   mTitleRect.bottom=0;
   mTitleRect.right=Height;
-
-  mModalResult = 0;
+  
   if (Caption != NULL) {
     SetCaption(Caption);
-  }
+    size_t nChar = _tcslen(Caption);
+    if(nChar > 0) {
+        SIZE tsize = {0,0};
+        LKWindowSurface Surface(*this);
+        Surface.SelectObject(mhTitleFont);
+        Surface.GetTextSize(Caption, nChar, &tsize);
 
+        mTitleRect.bottom = mTitleRect.top + tsize.cy;
+        mClientRect.top = mTitleRect.bottom+NIBLSCALE(1)-1;;
+    }
+  }  
+  
+  mClientWindow = new WindowControl(this, TEXT(""), mClientRect.top, 0, Width, Height-mClientRect.top);
+  mClientWindow->SetBackColor(RGB_WINBACKGROUND);
+  mClientWindow->SetCanFocus(false);
+
+  mModalResult = 0;
 };
 
 WndForm::~WndForm(void){
@@ -1729,7 +1751,7 @@ CheckSpecialKey(Window *container, const Event &event)
 
 
 int WndForm::ShowModal(void) {
-#define OPENCLOSESUPPRESSTIME Poco::Timespan(0,500*1000).totalMicroseconds()
+
     SHOWTHREAD(_T("ShowModal"));
 
     enterTime.update();
@@ -1747,9 +1769,11 @@ int WndForm::ShowModal(void) {
 
 #ifndef USE_GDI
     MainWindow.Refresh();
+#else
+    Redraw();
 #endif    
 
-    assert(event_queue);
+    LKASSERT(event_queue);
 #if defined(ANDROID) || defined(USE_CONSOLE) || defined(ENABLE_SDL) || defined(NON_INTERACTIVE)
     EventLoop loop(*event_queue, MainWindow);
 #else
@@ -1819,6 +1843,7 @@ int WndForm::ShowModal(void) {
     if(oldFocus) {
         oldFocus->SetFocus();
     }
+    MainWindow.UnGhost();
 
     MapWindow::RequestFastRefresh();
     Message::BlockRender(false);
@@ -1866,10 +1891,7 @@ void WndForm::Paint(LKSurface& Surface){
         p2.x=mTitleRect.right; p2.y=mTitleRect.bottom;
         Surface.DrawLine(PEN_SOLID, NIBLSCALE(1), p1, p2, RGB_GREEN, mTitleRect);
 
-        if (ScreenLandscape && (ScreenSize!=ss800x480))
-            rcClient.top = mTitleRect.bottom+NIBLSCALE(1);
-        else
-            rcClient.top = mTitleRect.bottom+NIBLSCALE(1)-1;
+        rcClient.top = mTitleRect.bottom+NIBLSCALE(1)-1;
 
         if (mClientWindow && !EqualRect(&mClientRect, &rcClient)){
             mClientWindow->Move(rcClient, true);
@@ -1877,7 +1899,7 @@ void WndForm::Paint(LKSurface& Surface){
             mClientRect = rcClient;
         }
 
-        Surface.DrawText(mTitleRect.left, mTitleRect.top, szCaption, nChar);
+        Surface.DrawText(mTitleRect.left+NIBLSCALE(2), mTitleRect.top, szCaption, nChar);
 
         Surface.SelectObject(oldBrush);
         Surface.SelectObject(oldPen);
@@ -1927,6 +1949,8 @@ void WndForm::SetFont(FontReference Value){
 }
 
 void WndForm::Show() {
+    MainWindow.UnGhost();
+    
     WindowControl::Show();
     SetToForeground();
 }
@@ -1939,10 +1963,10 @@ bool WndForm::OnKeyDownNotify(Window* pWnd, unsigned KeyCode) {
         WindowControl * pCtrl = ActiveControl->GetParent();
         if (pCtrl) {
             switch (KeyCode & 0xffff) {
-                case VK_UP:
+                case KEY_UP:
                     pCtrl->FocusPrev(ActiveControl);
                     break;
-                case VK_DOWN:
+                case KEY_DOWN:
                     pCtrl->FocusNext(ActiveControl);
                     break;
             }
@@ -1975,8 +1999,8 @@ WndButton::WndButton(WindowControl *Parent, const TCHAR *Name, const TCHAR *Capt
 
 bool WndButton::OnKeyDown(unsigned KeyCode) {
     switch (KeyCode) {
-        case VK_RETURN:
-        case VK_SPACE:
+        case KEY_RETURN:
+        case KEY_SPACE:
             if (!mDown) {
                 mDown = true;
                 Redraw();
@@ -1988,8 +2012,8 @@ bool WndButton::OnKeyDown(unsigned KeyCode) {
 
 bool WndButton::OnKeyUp(unsigned KeyCode) {
     switch (KeyCode) {
-        case VK_RETURN:
-        case VK_SPACE:
+        case KEY_RETURN:
+        case KEY_SPACE:
             if (!Debounce()) return (1); // prevent false trigger
             if (mDown) {
                 mDown = false;
@@ -2045,18 +2069,20 @@ void WndButton::Paint(LKSurface& Surface){
 
   // JMW todo: add icons?
 
-
-  if(GlobalModelType != MODELTYPE_PNA_MINIMAP || (GlobalModelType == MODELTYPE_PNA_MINIMAP && !HasFocus())) {
-    Surface.DrawPushButton(rc, mDown);
-  }
+  Surface.DrawPushButton(rc, mDown);
 
   const TCHAR * szCaption = GetWndText();
   const size_t nSize = _tcslen(szCaption);
   if (nSize > 0) {
 
-    Surface.SetTextColor(GetForeColor());
+    Surface.SetTextColor(IsDithered()?
+            (mDown ? RGB_WHITE : RGB_BLACK) : 
+            GetForeColor());
 
-    Surface.SetBkColor(GetBackColor());
+    Surface.SetBkColor(IsDithered()?
+            (mDown ? RGB_BLACK : RGB_WHITE) : 
+            GetBackColor());
+    
     Surface.SetBackgroundTransparent();
 
     const auto oldFont = Surface.SelectObject(GetFont());
@@ -2118,7 +2144,8 @@ WndProperty::WndProperty(WindowControl *Parent,
   mDialogStyle=false; // this is set by ::SetDataField()
 
   mUseKeyboard=false;
-
+  mMultiLine = MultiLine;
+          
   mhValueFont = GetFont();
   mCaptionWidth = CaptionWidth;
 
@@ -2229,14 +2256,13 @@ bool WndProperty::SetReadOnly(bool Value){
 
 bool WndProperty::OnKeyDown(unsigned KeyCode) {
     switch (KeyCode) {
-        case VK_RIGHT:
+        case KEY_RIGHT:
             IncValue();
             return true;
-        case VK_LEFT:
+        case KEY_LEFT:
             DecValue();
             return true;
-        case VK_RETURN:
-        case VK_F23:
+        case KEY_RETURN:
             if (this->mDialogStyle) {
                 if (OnLButtonDown((POINT) {0, 0})) {
                     return true;
@@ -2255,10 +2281,10 @@ bool WndProperty::OnKeyDown(unsigned KeyCode) {
 bool WndProperty::OnKeyUp(unsigned KeyCode) {
     if (KeyTimer(false, KeyCode&0xffff)) {
         // activate tool tips if hit return for long time
-        if ((KeyCode&0xffff) == VK_RETURN || (KeyCode&0xffff) == VK_F23) { // Compaq uses VKF23
+        if ((KeyCode&0xffff) == KEY_RETURN) {
             if (OnHelp()) return true;
         }
-    } else if ((KeyCode&0xffff) == VK_RETURN) {
+    } else if ((KeyCode&0xffff) == KEY_RETURN) {
         if (CallSpecial()) return true;
     }
     return false;
@@ -2353,6 +2379,12 @@ int WndProperty::DecValue(void){
 
 void WndProperty::Paint(LKSurface& Surface){
 
+    if((mBitmapSize > 0) && GetReadOnly()) {
+        SetButtonSize(0);
+    } else if (mDataField && !mDialogStyle ) {
+        SetButtonSize(16);
+    }
+    
   //  RECT r;
   SIZE tsize;
   POINT org;
@@ -2408,17 +2440,32 @@ void WndProperty::Paint(LKSurface& Surface){
   }
 
   if((mEditRect.right - mEditRect.left) > mBitmapSize) {
-    auto oldBrush = Surface.SelectObject(LKBrush_White);
-    auto oldPen = Surface.SelectObject(LKPen_Black_N1);
+    auto oldBrush = Surface.SelectObject(GetReadOnly()?LKBrush_LightGrey:LKBrush_White);
+    auto oldPen = Surface.SelectObject(LK_BLACK_PEN);
     // Draw Text Bakground & Border
     Surface.Rectangle(mEditRect.left, mEditRect.top, mEditRect.right, mEditRect.bottom);
     // Draw Text Value
+
+    RECT rcText = mEditRect;
+    InflateRect(&rcText, -NIBLSCALE(3), -1);
+    
+#ifndef USE_GDI
+    // SubCanvas is used for clipping.
+    // TODO : OpenGL SubCanvas don't clip rect, need to be fixed...
+    SubCanvas ClipCanvas(Surface, rcText.GetOrigin(), rcText.GetSize() );
+    rcText.Offset(-rcText.left, -rcText.top);
+
+    ClipCanvas.Select(*mhValueFont);
+    ClipCanvas.SetTextColor(RGB_BLACK);
+    ClipCanvas.SetBackgroundTransparent();
+
+    ClipCanvas.DrawFormattedText(&rcText, mValue.c_str(), DT_EXPANDTABS|(mMultiLine?DT_WORDBREAK:DT_SINGLELINE|DT_VCENTER));
+#else
     Surface.SelectObject(mhValueFont);
     Surface.SetTextColor(RGB_BLACK);
 
-    RECT rcText = mEditRect;
-    InflateRect(&rcText, -NIBLSCALE(3), 0);
-    Surface.DrawText(mValue.c_str(), mValue.size(), &rcText, DT_EXPANDTABS|DT_WORDBREAK);
+    Surface.DrawText(mValue.c_str(), mValue.size(), &rcText, DT_EXPANDTABS|(mMultiLine?DT_WORDBREAK:DT_SINGLELINE|DT_VCENTER));
+#endif
 
     Surface.SelectObject(oldPen);
     Surface.SelectObject(oldBrush);
@@ -2570,10 +2617,11 @@ void WndListFrame::Paint(LKSurface& Surface) {
 
     if (pChildFrame) {
 
+#ifdef USE_GDI
         LKBitmapSurface TmpSurface;
         TmpSurface.Create(Surface, pChildFrame->GetWidth(), pChildFrame->GetHeight());
-
         const auto oldFont = TmpSurface.SelectObject(pChildFrame->GetFont());
+#endif
 
         for (int i = 0; i < mListInfo.ItemInViewCount; i++) {
             if (mOnListCallback != NULL) {
@@ -2583,16 +2631,30 @@ void WndListFrame::Paint(LKSurface& Surface) {
                 mOnListCallback(this, &mListInfo);
             }
 
+#ifndef USE_GDI
+            const RasterPoint offset(pChildFrame->GetLeft(),  i * pChildFrame->GetHeight());
+            const PixelSize size(pChildFrame->GetWidth(), pChildFrame->GetHeight());
+            
+            SubCanvas TmpCanvas(Surface, offset, size);
+            LKSurface TmpSurface;
+            TmpSurface.Attach(&TmpCanvas);
+            TmpSurface.SelectObject(pChildFrame->GetFont());
+#endif            
+            
             pChildFrame->PaintSelector(true);
             pChildFrame->Paint(TmpSurface);
             pChildFrame->PaintSelector(false);
 
+#ifdef USE_GDI
             Surface.Copy(
                     pChildFrame->GetLeft(), i * pChildFrame->GetHeight(),
                     pChildFrame->GetWidth(), pChildFrame->GetHeight(),
                     TmpSurface, 0, 0);
         }
         TmpSurface.SelectObject(oldFont);
+#else
+        }
+#endif
 
         mListInfo.DrawIndex = mListInfo.ItemIndex;
 
@@ -2781,30 +2843,30 @@ bool WndListFrame::RecalculateIndices(bool bigscroll) {
 
 bool WndListFrame::OnItemKeyDown(WindowControl *Sender, unsigned KeyCode) {
     switch (KeyCode) {
-        case VK_RETURN:
+        case KEY_RETURN:
             if (mOnListEnterCallback) {
                 mOnListEnterCallback(this, &mListInfo);
                 RedrawScrolled(false);
                 return true;
             }
             return false;
-        case VK_LEFT:
+        case KEY_LEFT:
             if ((mListInfo.ScrollIndex > 0)
                     &&(mListInfo.ItemCount > mListInfo.ItemInPageCount)) {
                 mListInfo.ScrollIndex -= mListInfo.ItemInPageCount;
             }
             return RecalculateIndices(true);
-        case VK_RIGHT:
+        case KEY_RIGHT:
             if ((mListInfo.ItemIndex + mListInfo.ScrollIndex <
                     mListInfo.ItemCount)
                     &&(mListInfo.ItemCount > mListInfo.ItemInPageCount)) {
                 mListInfo.ScrollIndex += mListInfo.ItemInPageCount;
             }
             return RecalculateIndices(true);
-        case VK_DOWN:
+        case KEY_DOWN:
             mListInfo.ItemIndex++;
             return RecalculateIndices(false);
-        case VK_UP:
+        case KEY_UP:
             mListInfo.ItemIndex--;
             return RecalculateIndices(false);
     }

@@ -26,42 +26,43 @@ void MapWindow::DrawTerrainAbove(LKSurface& Surface, const RECT& rc) {
   if (DerivedDrawInfo.Flying) goto _doit;
 
   return;
-
+#if !defined(USE_MEMORY_CANVAS) && !defined(HAVE_HATCHED_BRUSH) 
+#error "Shading Glide not supported"
+#endif
 
 _doit:
 
   LKColor whitecolor = LKColor(0xff,0xff,0xff);
   LKColor graycolor = LKColor(0xf0,0xf0,0xf0);
-  LKColor origcolor = hdcTempTerrainAbove.SetTextColor(whitecolor);
+  LKColor origcolor = TempSurface.SetTextColor(whitecolor);
 
-  hdcTempTerrainAbove.SetBackgroundTransparent();
+  TempSurface.SetBackgroundTransparent();
 
-  hdcTempTerrainAbove.SetBkColor(whitecolor);
+  TempSurface.SetBkColor(whitecolor);
 
-  hdcTempTerrainAbove.SelectObject(LK_WHITE_PEN);
-  hdcTempTerrainAbove.SetTextColor(graycolor);
-#ifdef HAVE_HATCHED_BRUSH 
-  hdcTempTerrainAbove.SelectObject(hAboveTerrainBrush); // hAirspaceBrushes[3] or 6
-#else
-#warning "TODO : maybe we need solid brush or that !"
-#endif
-  hdcTempTerrainAbove.Rectangle(rc.left,rc.top,rc.right,rc.bottom);
-
-  hdcTempTerrainAbove.SelectObject(LK_WHITE_PEN);
-  hdcTempTerrainAbove.SelectObject(LKBrush_White);
-  hdcTempTerrainAbove.Polygon(Groundline,NUMTERRAINSWEEPS+1);
+  TempSurface.SelectObject(LK_WHITE_PEN);
+  TempSurface.SetTextColor(graycolor);
+  TempSurface.SelectObject(hAboveTerrainBrush);
+  TempSurface.Rectangle(rc.left,rc.top,rc.right,rc.bottom);
+  TempSurface.SelectObject(LK_WHITE_PEN);
+  TempSurface.SelectObject(LKBrush_White);
+  TempSurface.Polygon(Groundline,NUMTERRAINSWEEPS+1);
 
   // need to do this to prevent drawing of colored outline
-  hdcTempTerrainAbove.SelectObject(LK_WHITE_PEN);
+  TempSurface.SelectObject(LK_WHITE_PEN);
+#ifdef HAVE_HATCHED_BRUSH
   Surface.TransparentCopy(
           rc.left,rc.top,
           rc.right-rc.left,rc.bottom-rc.top,
-          hdcTempTerrainAbove,
+          TempSurface,
           rc.left,rc.top);
+#else
+  Surface.AlphaBlendNotWhite(rc, TempSurface, rc, 255/2);
+#endif
 
   // restore original color
-  hdcTempTerrainAbove.SetTextColor(origcolor);
-  hdcTempTerrainAbove.SetBackgroundOpaque();
+  TempSurface.SetTextColor(origcolor);
+  TempSurface.SetBackgroundOpaque();
 
 }
 

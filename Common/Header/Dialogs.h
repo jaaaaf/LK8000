@@ -54,7 +54,9 @@ int dlgAirspaceColoursShowModal(void);
 ListElement* dlgMultiSelectListShowModal(void);
 void dlgAddMultiSelectListItem(long* pNew ,int Idx, char type, double Distance);
 int dlgGetNoElements(void);
+#ifdef HAVE_HATCHED_BRUSH
 int dlgAirspacePatternsShowModal(void);
+#endif
 bool dlgAirspaceShowModal(bool colored);
 void dlgBasicSettingsShowModal(void);
 void dlgBrightnessShowModal(void);
@@ -84,8 +86,7 @@ void dlgWaypointEditShowModal(WAYPOINT *wpt);
 void dlgAirspaceSelect(void);
 void dlgTarget(int TaskPoint = -1);
 bool dlgTaskRules(void);
-void dlgAirspaceDetails(CAirspace *airspace);
-bool dlgAirspaceWarningVisible(void);
+
 void dlgLKTrafficDetails(int indexid);
 void dlgThermalDetails(int indexid);
 void dlgTimeGatesShowModal(void);
@@ -97,12 +98,6 @@ void dlgProfilesShowModal(short mode);
 void dlgAirspaceWarningParamsShowModal(void);
 void dlgMultimapsShowModal(void);
 void dlgIgcFileShowModal(void);
-
-#if (WINDOWSPC>0)
-#ifdef DEBUG
-#pragma warning( disable : 4786 ) 
-#endif
-#endif
 
 void WriteMissingTranslations(void);
 

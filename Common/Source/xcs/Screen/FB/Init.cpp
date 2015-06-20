@@ -48,8 +48,8 @@ ScreenGlobalInit::ScreenGlobalInit()
   event_queue = new EventQueue();
 
 #ifdef KOBO
-  Display::Rotate(DisplayOrientation::DEFAULT);
-  event_queue->SetMouseRotation(DisplayOrientation::DEFAULT);
+  Display::Rotate(DisplayOrientation_t::DEFAULT);
+  event_queue->SetMouseRotation(DisplayOrientation_t::DEFAULT);
 #endif
 
   ScreenInitialized();

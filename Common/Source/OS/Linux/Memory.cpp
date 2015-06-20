@@ -9,13 +9,20 @@
  * Created on 8 décembre 2014
  */
 
+#include <stddef.h>
+#include <sys/sysinfo.h>
 
-unsigned long CheckFreeRam(void) {
-    return (~0);
+
+size_t CheckFreeRam(void) {
+    struct sysinfo info = {};
+    if(sysinfo(&info) == 0) {
+        return info.freeram *(unsigned long long)info.mem_unit;
+    }
+    return ~((size_t)0);
 }
 
-unsigned long FindFreeSpace(const char *path) {
-    return (~0);
+size_t FindFreeSpace(const char *path) {
+    return ~((size_t)0);
 }
 
 void MyCompactHeaps() {

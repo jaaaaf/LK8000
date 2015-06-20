@@ -22,6 +22,7 @@
 #include "Poco/Timestamp.h"
 #include "Screen/PenReference.h"
 #include "Screen/BrushReference.h"
+#include "InputEvents.h"
 
 extern POINT startScreen;
 
@@ -107,7 +108,7 @@ void MapWindow::DrawXGrid(LKSurface& Surface, const RECT& rc, double ticstep,dou
   double xval;
   if (psDia->fXMax == psDia->fXMin)
     psDia->fXMax++;
-  double xscale = (rc.right-rc.left) / (psDia->fXMax-psDia->fXMin);
+  double xscale = (rc.right) / (psDia->fXMax-psDia->fXMin);
   int xmin=0, ymin=0, xmax=0, ymax=0;
   double x_max = psDia->fXMax;
   double x_min = psDia->fXMin;
@@ -600,15 +601,22 @@ switch(LKevent)
 #ifdef FLARM_MS
 			    dlgAddMultiSelectListItem( (long*) &LKTraffic[j], j, IM_FLARM, LKTraffic[j].Distance);
 #else
-			    dlgLKTrafficDetails( j); // With no Multiselect
+			    InputEvents::processPopupDetails(InputEvents::PopupTraffic, j); // With no Multiselect
 #endif
 			    bFound = true;
 			  }
 		    }
 		  }
 	    }
+    
 #ifdef FLARM_MS
-	dlgMultiSelectListShowModal();
+    if(bFound) {
+        /*
+         * we can't show dialog from Draw thread
+         * instead, new event is queued, dialog will be popup by main thread 
+         */
+        InputEvents::processGlideComputer(GCE_POPUP_MULTISELECT);
+    }
 #endif
 	if(!bFound)
 	  if( PtInRect(&rc, startScreen))
@@ -744,11 +752,8 @@ DiagrammStruct sDia;
 	  switch (ScreenSize) {
 		case ss480x640:
 		case ss480x800:
-		case ss896x672:
 		case ss800x480:
 		case ss640x480:
-			bLandscape = true;
-
 			iCircleSize = 9;
 			iTraceDotSize = 5;
 			iRectangleSize = 7;
@@ -758,19 +763,14 @@ DiagrammStruct sDia;
 		case ss272x480:
 		case ss320x240:
 		case ss480x272:
-		case ss720x408:
 		case ss480x234:
 		case ss400x240:
 			iCircleSize = 7;
 			iTraceDotSize = 3;
 			iRectangleSize = 5;
 			tscaler=(NIBLSCALE(13)-2)      ;
-			bLandscape = false;
-
 			break;
 		default:
-			bLandscape = true;
-
 			iCircleSize = 7;
 			iTraceDotSize = 3;
 			iRectangleSize = 5;
@@ -780,25 +780,7 @@ DiagrammStruct sDia;
 
 
 
-	  switch (ScreenSize) {
-		case ss480x640:
-		case ss480x800:
-		case ss272x480:
-		case ss240x320:
-			bLandscape = false;
-		break;
-		case ss896x672:
-		case ss800x480:
-		case ss640x480:
-		case ss320x240:
-		case ss480x272:
-		case ss720x408:
-		case ss480x234:
-		case ss400x240:
-		default:
-		  bLandscape = true;
-		break;
-	}
+        bLandscape = ScreenLandscape;
 
 
 	if(   bLandscape)
@@ -1337,7 +1319,7 @@ if(bSideview)
     case 2:  pBmpTemp = &hHeadRight ; break; //     "Head Up"
   }
   if(pBmpTemp) {
-    Surface.DrawMaskedBitmap(rci.left+NIBLSCALE(27),	rci.top+TOPLIMITER,	NIBLSCALE(22), NIBLSCALE(22), *pBmpTemp, 22, 22);
+     Surface.DrawMaskedBitmap(rci.right-NIBLSCALE(27),	rci.top+TOPLIMITER,	NIBLSCALE(22), NIBLSCALE(22), *pBmpTemp, 22, 22);
   }
 
   if(bHeightScale)
@@ -1347,8 +1329,6 @@ if(bSideview)
 	DrawSelectionFrame(hdc,  rci);
 #endif
 
-
-//DrawMultimap_Topleft(hdc, rci);
 
 Surface.SelectObject(hfOldFont);
 Surface.SelectObject(hOldPen);
@@ -1442,7 +1422,7 @@ return iCnt;
 
 
 #ifndef FLARM_MS
-void MapWindow::DrawFlarmPicto(HDC hDC, const RECT rc, FLARM_TRAFFIC* pTraf) {
+void MapWindow::DrawFlarmPicto(LKSurface& Surface, const RECT& rc, FLARM_TRAFFIC* pTraf) {
 }
 #else
 //

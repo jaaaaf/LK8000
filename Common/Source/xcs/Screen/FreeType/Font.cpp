@@ -3,7 +3,14 @@ Copyright_License {
 
   XCSoar Glide Computer - http://www.xcsoar.org/
   Copyright (C) 2000-2014 The XCSoar Project
-  A detailed list of copyright holders can be found in the file "AUTHORS".
+  A detailed list of copyright holders can be found in the file "AUTHORS"
+  on XCSoar github.
+
+  LK8000 Tactical Flight Computer -  WWW.LK8000.ORG
+  Copyright (C) 2015 The LK8000 Project
+  Released under GNU/GPL License v.2
+  See CREDITS.TXT file for authors and copyrights
+
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License
@@ -26,6 +33,7 @@ Copyright_License {
 #include "Screen/Custom/Files.hpp"
 #include "Init.hpp"
 #include "Asset.hpp"
+#include "externs.h"
 
 #ifndef ENABLE_OPENGL
 #include "Poco/Mutex.h"
@@ -43,10 +51,35 @@ Copyright_License {
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_BITMAP_H
 
+extern FT_Library ft_library;
 #include <algorithm>
 
 #include <assert.h>
+
+/*
+ * LK8000 options
+ */
+
+// Kerning requires bitmap OR operation, which may result in slower speed.
+//
+#define USE_KERNING
+#ifdef USE_KERNING
+// Light kerning limits 64 subpixels regression into previous glyph
+// Notice that we can get a kerning delta equivalent to the horiBearingX, which means
+// the glyphs are very near, and may be in contact. 
+#define LIGHT_KERNING
+#endif
+
+// Assuming we are always in-grid we can avoid to do roundings to 64 before rendering.
+// For our case, metrics are returning 26.6 values always .
+//
+#define ALWAYS_GRIDDED
+#ifndef ALWAYS_GRIDDED
+#define FIX_HINTING
+#endif
+
 
 #ifndef ENABLE_OPENGL
 /**
@@ -80,15 +113,25 @@ gcc_const
 static inline FT_Long
 FT_FLOOR(FT_Long x)
 {
+  #ifdef ALWAYS_GRIDDED
+  return x >> 6;
+  #else
   return (x & -64) / 64;
+  #endif
 }
+
 
 gcc_const
 static inline FT_Long
 FT_CEIL(FT_Long x)
 {
+  #ifdef ALWAYS_GRIDDED
+  return x >> 6;
+  #else
   return ((x + 63) & -64) / 64;
+  #endif
 }
+
 
 gcc_pure
 static std::pair<unsigned, const TCHAR *>
@@ -147,7 +190,14 @@ Font::LoadFile(const char *file, UPixelScalar ptsize, bool bold, bool italic)
   if (new_face == nullptr)
     return false;
 
-  FT_Error error = ::FT_Set_Char_Size(new_face, 0, ptsize<<6, 0, 64);
+  if (ptsize>1000) {
+      ptsize-=1000;
+      demibold=true;
+  } else
+      demibold=false;
+
+  // Paolo: in order to get back desired ppts we must ask for 62, not 64
+  FT_Error error = ::FT_Set_Char_Size(new_face, 0, ptsize<<6, 0, 62);
   if (error) {
     ::FT_Done_Face(new_face);
     return false;
@@ -162,8 +212,6 @@ Font::LoadFile(const char *file, UPixelScalar ptsize, bool bold, bool italic)
   if (capital_height == 0)
     capital_height = height;
   
-  // TODO: handle bold/italic
-
   face = new_face;
   return true;
 }
@@ -236,10 +284,15 @@ Font::TextSize(const TCHAR *text) const
 #endif
 
   const FT_Face face = this->face;
+#ifdef USE_KERNING
   const bool use_kerning = FT_HAS_KERNING(face);
-
-  int x = 0, minx = 0, maxx = 0;
   unsigned prev_index = 0;
+#endif
+
+  int x = 0;
+#ifdef FIX_HINTING
+  FT_Pos prev_rsb_delta=0;
+#endif
 
 #ifndef ENABLE_OPENGL
   const Poco::ScopedLock<Poco::Mutex> protect(freetype_mutex);
@@ -262,35 +315,49 @@ Font::TextSize(const TCHAR *text) const
       continue;
 
     const FT_GlyphSlot glyph = face->glyph;
-    const FT_Glyph_Metrics &metrics = glyph->metrics;
+    #if (defined LIGHT_KERNING) || !(defined USE_KERNING)
+    const FT_Glyph_Metrics metrics = glyph->metrics;
+    #endif
 
-    const int glyph_minx = FT_FLOOR(metrics.horiBearingX);
-    const int glyph_maxx = minx + FT_CEIL(metrics.width);
-    const int glyph_advance = FT_CEIL(metrics.horiAdvance);
-
-    if (use_kerning) {
-      if (prev_index != 0 && i != 0) {
+#ifdef USE_KERNING
+    if (use_kerning && x) {
+      if (prev_index != 0) {
         FT_Vector delta;
-        FT_Get_Kerning(face, prev_index, i, ft_kerning_default,
-                       &delta);
-        x += delta.x >> 6;
+        FT_Get_Kerning(face, prev_index, i, ft_kerning_default, &delta);
+        #ifdef LIGHT_KERNING
+        if (-delta.x <= metrics.horiBearingX)
+            x += delta.x ;
+        else
+            x -= (metrics.horiBearingX +64);
+        #else
+        x += delta.x ;
+        #endif
       }
-
-      prev_index = i;
     }
+    prev_index = i;
+#endif
 
-    int z = x + glyph_minx;
-    if (z < minx)
-      minx = z;
 
-    z = x + std::max(glyph_maxx, glyph_advance);
-    if (z > maxx)
-      maxx = z;
+#ifdef FIX_HINTING
+    if (prev_rsb_delta - glyph->lsb_delta >= 32 )
+        x -= 64;
+    else if ( prev_rsb_delta - glyph->lsb_delta < -32 )
+        x += 64;
 
-    x += glyph_advance;
+    prev_rsb_delta = glyph->rsb_delta;
+#endif
+
+
+#ifdef USE_KERNING
+    x += glyph->advance.x;
+#else
+    x += (metrics.width > metrics.horiAdvance ? metrics.width : metrics.horiAdvance);
+#endif
+
+
   }
 
-  return PixelSize{unsigned(maxx - minx), height};
+  return PixelSize{unsigned(std::max(0, x >> 6 )), height};
 }
 
 static void
@@ -326,10 +393,15 @@ RenderGlyph(uint8_t *buffer, unsigned buffer_width, unsigned buffer_height,
     height = buffer_height - y;
 
   buffer += unsigned(y) * buffer_width + unsigned(x);
-  for (const uint8_t *end = src + height * pitch;
-       src != end; src += pitch, buffer += buffer_width)
-    // TODO: mix with previous character?
-    std::copy(src, src + width, buffer);
+  for (const uint8_t *end = src + height * pitch; 
+      src != end; src += pitch, buffer += buffer_width) {
+    // with Kerning, Glyph can overlapp previous, so, we need merge bitmap.
+#ifdef USE_KERNING
+      std::transform(src, src + width, buffer, buffer, std::bit_or<uint8_t>());
+#else
+      std::copy(src, src + width, buffer);
+#endif
+  }
 }
 
 static void
@@ -361,9 +433,6 @@ static void
 RenderGlyph(uint8_t *buffer, size_t width, size_t height,
             FT_GlyphSlot glyph, int x, int y)
 {
-  FT_Error error = FT_Render_Glyph(glyph, render_mode);
-  if (error)
-    return;
 
   if (IsMono()) {
     /* with anti-aliasing disabled, FreeType writes each pixel in one
@@ -376,6 +445,24 @@ RenderGlyph(uint8_t *buffer, size_t width, size_t height,
     RenderGlyph(buffer, width, height, glyph->bitmap, x, y);
 }
 
+//
+// 2015-04-18  note by Paolo
+//
+// The original code from xcsoar was not spacing characters correctly in LK.
+// I have no idea if the problem exists in xcsoar, but we had to fix it here.
+// After quite some time, and frustration reading the confusing docs of FreeType,
+// I came to this solution which is much more accurate.
+// We use subpixels assuming we are always grid-aligned, which is true for our case.
+// Kerning does work, but we must always check that we are not going below the 
+// available space, to avoid overlapping previous glyph. This is necessary since
+// the bitmap operations are copying, not merging, bitmaps. I have no idea how 
+// Windows is doing this, apparently microsoft does not merge glyphs too.
+// Hinting is required to keep vertical alignement, which may hide a bug.
+// I am not sure if all of this (long and complicated) work is correct or it is instead
+// a workaround for a more complex problem existing elsewhere.
+// However it does work for us, against all odds.
+// Update april 21st: merging instead of copying makes the kerning process working fine.
+//
 void
 Font::Render(const TCHAR *text, const PixelSize size, void *_buffer) const
 {
@@ -388,14 +475,23 @@ Font::Render(const TCHAR *text, const PixelSize size, void *_buffer) const
   std::fill_n(buffer, BufferSize(size), 0);
 
   const FT_Face face = this->face;
-  const bool use_kerning = FT_HAS_KERNING(face);
+  const FT_GlyphSlot glyph = face->glyph;
 
-  int x = 0, minx = 0;
+#ifdef USE_KERNING
+  bool use_kerning = FT_HAS_KERNING(face);
   unsigned prev_index = 0;
+#endif
+
+  int x = 0;
+#ifdef FIX_HINTING
+  FT_Pos prev_rsb_delta=0;
+#endif
+
 
 #ifndef ENABLE_OPENGL
   const Poco::ScopedLock<Poco::Mutex> protect(freetype_mutex);
 #endif
+
 
   while (true) {
     const auto n = NextChar(text);
@@ -413,32 +509,55 @@ Font::Render(const TCHAR *text, const PixelSize size, void *_buffer) const
     if (error)
       continue;
 
-    const FT_GlyphSlot glyph = face->glyph;
-    const FT_Glyph_Metrics &metrics = glyph->metrics;
+    const FT_Glyph_Metrics metrics = glyph->metrics;
 
-    const int glyph_minx = FT_FLOOR(metrics.horiBearingX);
-    const int glyph_advance = FT_CEIL(metrics.horiAdvance);
-
-    if (use_kerning) {
+#ifdef USE_KERNING
+    if (use_kerning && x) {
       if (prev_index != 0) {
         FT_Vector delta;
-        FT_Get_Kerning(face, prev_index, i, ft_kerning_default,
-                       &delta);
-        x += delta.x >> 6;
+        FT_Get_Kerning(face, prev_index, i, ft_kerning_default, &delta);
+        #ifdef LIGHT_KERNING
+        if (-delta.x <= metrics.horiBearingX)
+            x += delta.x ;
+        else
+            x -= (metrics.horiBearingX + 64);
+        #else
+            x += delta.x;
+        #endif
       }
-
-      prev_index = i;
     }
+    prev_index = i;
+#endif
 
-    int z = x + glyph_minx;
-    if (z < minx)
-      minx = z;
 
-    const int glyph_maxy = FT_FLOOR(metrics.horiBearingY);
+#ifdef FIX_HINTING
+    if (prev_rsb_delta - glyph->lsb_delta >= 32 )
+        x -= 64;// >> 6;
+    else if ( prev_rsb_delta - glyph->lsb_delta < -32 )
+        x += 64;// >> 6;
+
+    prev_rsb_delta = glyph->rsb_delta;
+#endif
+
+    error = FT_Render_Glyph(glyph, render_mode);
+    if (error)
+      continue;
+    /* 
+     *  32,  0  = Microsoft GDI weight=600 (64=32)
+     */
+    if (demibold) FT_Bitmap_Embolden(ft_library,&glyph->bitmap, 32,0);
 
     RenderGlyph((uint8_t *)buffer, size.cx, size.cy,
-                glyph, x - minx, ascent_height - glyph_maxy);
+#ifdef USE_KERNING
+        glyph, (x >> 6)+glyph->bitmap_left , ascent_height - FT_FLOOR(metrics.horiBearingY));
 
-    x += glyph_advance;
+    x += glyph->advance.x; // equivalent to metrics.horiAdvance
+#else
+        glyph, (x + metrics.horiBearingX ) >> 6 , ascent_height - FT_FLOOR(metrics.horiBearingY));
+
+    x += (metrics.width > metrics.horiAdvance ? metrics.width : metrics.horiAdvance);
+#endif
+
   }
 }
+

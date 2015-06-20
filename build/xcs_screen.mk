@@ -6,7 +6,8 @@ XCS_SCREEN_MEMORY := \
 	$(SRC)/xcs/Screen/Memory/Canvas.cpp \
 	$(SRC)/xcs/Screen/Memory/VirtualCanvas.cpp \
 	$(SRC)/xcs/Screen/Memory/RawBitmap.cpp \
-
+	$(SRC)/xcs/Screen/Memory/Dither.cpp \
+	
 XCS_SCREEN_FB := \
 	$(SRC)/xcs/Screen/FB/Window.cpp \
 	$(SRC)/xcs/Screen/FB/SingleWindow.cpp \
@@ -20,7 +21,6 @@ XCS_SCREEN_TTY := \
 XCS_SCREEN_CUSTOM := \
 	$(SRC)/xcs/Screen/Custom/Bitmap.cpp \
 	$(SRC)/xcs/Screen/Custom/LibPNG.cpp \
-	$(SRC)/xcs/Screen/Custom/LibJPEG.cpp \
 	$(SRC)/xcs/Screen/Custom/Pen.cpp \
 	$(SRC)/xcs/Screen/Custom/Files.cpp \
 	$(SRC)/xcs/Screen/Custom/WList.cpp \
@@ -56,6 +56,7 @@ XCS_SCREEN := \
 	$(SRC)/xcs/Screen/SingleWindow.cpp \
 	$(SRC)/xcs/Screen/Color.cpp \
 	$(SRC)/xcs/Screen/Debug.cpp \
+	$(SRC)/xcs/Screen/BufferCanvas.cpp \
 
 XCS_UTILS := \
 	$(SRC)/xcs/Util/UTF8.cpp\
@@ -68,6 +69,7 @@ XCS_IO_ASYNC := \
 
 XCS_HARDWARE := \
 	$(SRC)/xcs/Hardware/CPU.cpp \
+	$(SRC)/xcs/Hardware/RotateDisplay.cpp \
 
 
 	

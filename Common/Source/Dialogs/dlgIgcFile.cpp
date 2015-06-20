@@ -27,19 +27,31 @@ namespace DlgIgcFile {
     void ScanFile() {
         FileList.clear();
         TCHAR szPath[MAX_PATH] = _T("\0");
-		LocalPath(szPath, _T(LKD_LOGS));
+        TCHAR tmpPath[MAX_PATH];
+	LocalPath(szPath, _T(LKD_LOGS));
         size_t nLen = _tcslen(szPath);
         if (szPath[nLen - 1] != _T('\\')) {
             _tcscat(szPath, _T(DIRSEP));
         }
-        _tcscat(szPath, _T("*.igc"));
+	_tcscpy(tmpPath,szPath);
+        _tcscat(tmpPath, _T("*.igc"));
 
-        for(lk::filesystem::directory_iterator It(szPath); It; ++It) {
+        for(lk::filesystem::directory_iterator It(tmpPath); It; ++It) {
             if(!It.isDirectory()) {
                 FileList.push_back(It.getName());
             }
         }
         
+	_tcscpy(tmpPath,szPath);
+        _tcscat(tmpPath, _T("*.IGC"));
+
+        for(lk::filesystem::directory_iterator It(tmpPath); It; ++It) {
+            if(!It.isDirectory()) {
+                FileList.push_back(It.getName());
+            }
+        }
+
+
         std::sort(FileList.rbegin(), FileList.rend()); // sort in desc order.
     }
 
@@ -145,9 +157,9 @@ namespace DlgIgcFile {
             FileList_t::const_iterator ItFileName = FileList.begin();
             std::advance(ItFileName, DrawListIndex);
             int w0 = Sender->GetWidth();
+          
+            Surface.SetTextColor(RGB_BLACK);
             Surface.DrawTextClip(2 * ScreenScale, 2 * ScreenScale, ItFileName->c_str(), w0 - ScreenScale * 5);
-
-
         }
     }
 

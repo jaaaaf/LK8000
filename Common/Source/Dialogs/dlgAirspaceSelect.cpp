@@ -13,7 +13,7 @@
 #include "Airspace.h"
 #include "AirspaceWarning.h"
 #include "Dialogs.h"
-
+#include "Event/Event.h"
 
 typedef struct{
   CAirspace *airspace;
@@ -68,7 +68,7 @@ static void OnAirspaceListEnter(WindowControl * Sender,
 
       CAirspace *airspace = AirspaceSelectInfo[LowLimit+ItemIndex].airspace;
       if (airspace) {
-          dlgAirspaceDetails(airspace);
+          CAirspaceManager::Instance().PopupAirspaceDetail(airspace);
       }
     }
   } else {
@@ -151,7 +151,7 @@ static void PrepareData(void){
     malloc(sizeof(AirspaceSelectInfo_t) * NumberOfAirspaces);
 
   if (AirspaceSelectInfo==NULL) {
-	OutOfMemory(__FILE__,__LINE__);
+	OutOfMemory(_T(__FILE__),__LINE__);
 	return;
   }
 
@@ -494,6 +494,8 @@ static void OnPaintListItem(WindowControl * Sender, LKSurface& Surface){
 
     int i = LowLimit + DrawListIndex;
 
+    Surface.SetTextColor(RGB_BLACK);
+
 // Poco::Thread::sleep(100);
 	const TCHAR *Name = NULL;
 	if (AirspaceSelectInfo[i].airspace) Name = AirspaceSelectInfo[i].airspace->Name();
@@ -583,13 +585,13 @@ static bool FormKeyDown(Window* pWnd, unsigned KeyCode){
   unsigned NewIndex = TypeFilterIdx;
 
   switch(KeyCode & 0xffff){
-    case VK_F1:
+    case KEY_F1:
       NewIndex = 0;
     break;
-    case VK_F2:
+    case KEY_F2:
       NewIndex = 2;
     break;
-    case VK_F3:
+    case KEY_F3:
       NewIndex = 3;
     break;
   }
@@ -633,7 +635,7 @@ void dlgAirspaceSelect(void) {
   Latitude = GPS_INFO.Latitude;
   Longitude = GPS_INFO.Longitude;
 
-  if (!ScreenLandscape) {
+  if (ScreenLandscape) {
     TCHAR filename[MAX_PATH];
     LocalPathS(filename, TEXT("dlgAirspaceSelect_L.xml"));
     wf = dlgLoadFromXML(CallBackTable, 
@@ -641,10 +643,10 @@ void dlgAirspaceSelect(void) {
                         TEXT("IDR_XML_AIRSPACESELECT_L"));
   } else {
     TCHAR filename[MAX_PATH];
-    LocalPathS(filename, TEXT("dlgAirspaceSelect.xml"));
+    LocalPathS(filename, TEXT("dlgAirspaceSelect_P.xml"));
     wf = dlgLoadFromXML(CallBackTable, 
                         filename, 
-                        TEXT("IDR_XML_AIRSPACESELECT"));
+                        TEXT("IDR_XML_AIRSPACESELECT_P"));
   }
 
   if (!wf) return;

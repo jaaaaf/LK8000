@@ -14,6 +14,7 @@
 #include <functional>
 #include "Window/WndMain.h"
 #include "Window/WndTextLabel.h"
+#include "ScreenGeometry.h"
 using std::placeholders::_1;
 
 class MenuButton : public WndTextLabel {
@@ -147,37 +148,41 @@ void ButtonLabel::GetButtonPosition(unsigned i, const RECT& rc,
 						voffset= 20;
 						hoffset=*sizex+2;
 						break;
-#if (WINDOWSPC>0)
-					case ss720x408:
-						*sizex = NIBLSCALE(77); // watch out MAXIBLSCALE
-						*sizey = 72-1;
-						voffset= 39;
-						hoffset=*sizex+3;
-						break;
-					case ss896x672:
-						*sizex = NIBLSCALE(60);
-						*sizey = 100-2;
-						voffset= 56;
-						hoffset=*sizex+4;
-						break;
-#endif
 					default:
-						*sizex = NIBLSCALE(77);
-						*sizey = NIBLSCALE(40);
-						voffset= (int)(26*Screen0Ratio);
-						hoffset=*sizex+5;
+						//
+						// AUTORES ACCOMPLISHED
+						//
+						LKASSERT(ScreenGeometry>0);
+						switch(ScreenGeometry) {
+						    case SCREEN_GEOMETRY_43:
+						        *sizex = NIBLSCALE(60);
+					      	        *sizey = (int)(70.0*Screen0Ratio);
+						        voffset= (int)(40.0*Screen0Ratio);
+						        hoffset=*sizex+3;
+							break;
+
+						    case SCREEN_GEOMETRY_53:
+						        *sizex = NIBLSCALE(75);
+					      	        *sizey = (int)(78.0*Screen0Ratio);
+						        voffset= (int)(40.0*Screen0Ratio);
+						        hoffset=*sizex+5;
+						        break;
+
+						    case SCREEN_GEOMETRY_169:
+						    default:
+						        *sizex = NIBLSCALE(77);
+					      	        *sizey = (int)(47.0*Screen0Ratio);
+						        voffset= (int)(26.0*Screen0Ratio);
+						        hoffset=*sizex+3;
+						        break;
+						}
 						break;
 				}
-				//*x = rc.right-3-*sizex;	
-				//*y = (rc.top+hheight*i-(*sizey)/2)-(*sizey/2);
 				*x = rc.right-3-hoffset;	
 				*y = (rc.top+hheight*i-(*sizey)/2)-voffset;
 			} else {
 				// BOTTOM MENUS
 
-				// warning, these values are a copy of those in Utils2, inside InitLKFonts.
-				// Since that function has not been called yet when we are here, we need to load them manually.
-				// In any case, even changing those values, only cosmetic issue is rised.
 				switch(ScreenSize) {
 					case ss800x480:
 						*sizex = NIBLSCALE(78);
@@ -217,25 +222,34 @@ void ButtonLabel::GetButtonPosition(unsigned i, const RECT& rc,
 						// distance from bottom
 						voffset=1;
 						break;
-#if (WINDOWSPC>0)
-					case ss720x408:
-						*sizex = NIBLSCALE(82);
-						*sizey = 72-1;
-						hoffset= 2;
-						voffset=1;
-						break;
-					case ss896x672:
-						*sizex = NIBLSCALE(62);
-						*sizey = 100-2;
-						hoffset= 2;
-						voffset=1;
-						break;
-#endif
 					default:
-						*sizex = NIBLSCALE(77);
-						*sizey = NIBLSCALE(40);
-						hoffset=2;
-						voffset=1;
+						//
+						// AUTORES ACCOMPLISHED
+						//
+						LKASSERT(ScreenGeometry>0);
+						switch(ScreenGeometry) {
+						    case SCREEN_GEOMETRY_43:
+						        *sizex = NIBLSCALE(62);
+					      	        *sizey = (int)(70.0*Screen0Ratio);
+						        voffset= 1;
+						        hoffset= 2;
+							break;
+
+						    case SCREEN_GEOMETRY_53:
+						        *sizex = NIBLSCALE(78);
+					      	        *sizey = (int)(78.0*Screen0Ratio);
+						        voffset= 1;
+						        hoffset= NIBLSCALE(1);
+						        break;
+
+						    case SCREEN_GEOMETRY_169:
+						    default:
+						        *sizex = NIBLSCALE(82);
+					      	        *sizey = (int)(47.0*Screen0Ratio);
+						        voffset= 2;
+						        hoffset= 1;
+						        break;
+						}
 						break;
 				}
 				if (i>=10) {
@@ -262,7 +276,12 @@ void ButtonLabel::CreateButtonLabels(const RECT& rc) {
         MenuButtons[i].Create(&MainWindow, (RECT){ x, y, x + cx, y + cy });
         if(MenuButtons[i].IsDefined()) {
             MenuButtons[i].SetTextColor(RGB_BLACK);
+            #ifdef UNDITHER
+            //MenuButtons[i].SetBkColor(RGB_LIGHTGREY); // not so bad
+            MenuButtons[i].SetBkColor(RGB_WHITE); // same as for GREYSCALE, for the time being
+            #else
             MenuButtons[i].SetBkColor(RGB_BUTTONS);
+            #endif
             MenuButtons[i].SetMenuId(i);
         }
     }

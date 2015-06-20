@@ -96,28 +96,18 @@ void RasterTerrain::OpenTerrain(void)
 
 
 bool RasterTerrain::CreateTerrainMap(const TCHAR *zfilename) {
-
-  TerrainMap = new RasterMapRaw();
+  assert(!TerrainMap); // memory leak;
+  
+  TerrainMap = new RasterMap();
   if (!TerrainMap) {
     return false;
   }
-  if (TerrainMap->Open(zfilename)) {
-    return true;
-  } 
-
-  #if RASTERCACHE
-  TerrainMap->Close();
-  delete TerrainMap;
-  TerrainMap = new RasterMapCache();
-  if (!TerrainMap) {
+  if (!TerrainMap->Open(zfilename)) {
+    delete TerrainMap;
+    TerrainMap = nullptr;  
     return false;
-  }
-  if (TerrainMap->Open(zfilename)) {
-    return true;
   } 
-  #endif
-
-  return false;
+  return true;
 }
 
 ///////// Specialised open/close routines /////////////////// 

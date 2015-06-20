@@ -134,9 +134,7 @@ public:
 
   const TCHAR* TypeName(void) const;
   const LKColor& TypeColor(void) const;
-#ifdef HAVE_HATCHED_BRUSH
   const LKBrush& TypeBrush(void) const;
-#endif
 
   const TCHAR* Name() const { return _name; }
   const AIRSPACE_ALT* Top() const { return &_top; }
@@ -274,11 +272,8 @@ public:
     static CAirspace* GetSideviewNearestInstance() { return _sideview_nearest_instance; }
     
 protected:
-    void ClipScreenPoint(const RECT& rcDraw);
-    
-    // this 2 array is modified by DrawThread, never use it in another thread !!
+    // this array is modified by DrawThread, never use it in another thread !!
     POINTList _screenpoints;
-    POINTList _screenpoints_clipped;        // screen coordinates
     
     ////////////////////////////////////////////////////////////////////////////////
     // Draw Picto methods
@@ -509,6 +504,12 @@ public:
 
   //Locking
   CCriticalSection& MutexRef() const { return _csairspaces; }
+  
+  // Airspaces detail system accessor
+  void PopupAirspaceDetail(CAirspace * pAsp);
+  void ProcessAirspaceDetailQueue();
+  
+  CAirspace* GetAirspacesForDetails() { return _detail_current; } // call this only inside Mutex Guard section !
 
 private:
   static CAirspaceManager _instance;
@@ -528,6 +529,10 @@ private:
   // User warning message queue
   AirspaceWarningMessageList _user_warning_queue;                // warnings to show
   CAirspaceList _airspaces_of_interest;
+  
+  // Airspaces detail system data
+  CAirspace * _detail_current; 
+  CAirspaceList _detail_queue;
   
   //Openair parsing functions, internal use
   void FillAirspacesFromOpenAir(ZZIP_FILE *fp);

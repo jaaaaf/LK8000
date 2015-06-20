@@ -24,6 +24,12 @@ output.map
 /.cproject
 /.project
 /local.mk
-/LK8000-LINUX_debug-ns.exe
-/LK8000-LINUX_debug.exe
+/LK8000-LINUX_debug-ns
+/LK8000-LINUX_debug
 /Distrib/
+/LK8000-KOBO
+/LK8000-LINUX
+/LK8000-KOBO_debug-ns
+/LK8000-KOBO_debug
+/KoboRoot.tgz
+/LK8000-LINUX-ns

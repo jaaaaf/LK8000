@@ -1,6 +1,6 @@
 ﻿#CLEAR
 # DEFAULT_MENU.TXT for LK8000 by Paolo Ventafridda
-# Release  140519
+# Release  150420
 #
 # USERS SHOULD NOT CHANGE THIS FILE.
 # THEY CAN INSTEAD COPY IT TO CONFIGURATION DIRECTORY
@@ -103,6 +103,16 @@ type=gce
 data=FLIGHTMODE_FINALGLIDE_TERRAIN
 event=StatusMessage ZYX934
 
+
+mode=default
+type=gce
+data=POPUP_MULTISELECT
+event=ShowMultiselect
+
+mode=default
+type=gce
+data=WAYPOINT_DETAILS_SCREEN
+event=NearestWaypointDetails screen
 
 # ------------
 # mode=default
@@ -901,7 +911,7 @@ location=9
 mode=Config1
 type=key
 data=11
-label=_@M2124_
+label=_@M2124_$(SCREENROTATE)
 event=Mode PCMODE
 location=10
 
@@ -1222,9 +1232,9 @@ location=7
 mode=Info2
 type=key
 data=9
+event=Service CREDITS
 event=Mode default
-# label=_@M2023_$(DISABLED)
-label=$(AC03)
+label=Credits
 location=8
 
 mode=Info2
@@ -1896,15 +1906,15 @@ location=7
 mode=FlarmStealth
 type=key
 data=9
-# label=_@M2023_$(DISABLED)
-label=$(AC03)
+event=SendNMEAPort1 PFLAC,S,NOTRACK,1
+label=Tracking\n_@M2094_
 location=8
 
 mode=FlarmStealth
 type=key
 data=0
-# label=_@M2023_$(DISABLED)
-label=$(AC03)
+event=SendNMEAPort1 PFLAC,S,NOTRACK,0
+label=Tracking\n_@M2093_
 location=9
 
 mode=FlarmStealth
@@ -2472,8 +2482,8 @@ location=9
 mode=SIMMENU
 type=key
 data=11
-label= 
-event=Null
+event=Mode SIMNETTO
+label=_@M1089_\n$(NETTO)
 location=10
 
 mode=SIMMENU
@@ -2549,11 +2559,88 @@ location=9
 mode=SIMALT
 type=key
 data=11
-label= 
-event=Null
+event=Mode SIMNETTO
+label=_@M1089_\n$(NETTO)
 location=10
 
 mode=SIMALT
+type=key
+data=12
+label= 
+event=Null
+location=11
+
+# -------------
+# mode=SIMNETTO
+# -------------
+
+mode=SIMNETTO
+type=key
+data=APP1
+label=
+location=1
+
+mode=SIMNETTO
+type=key
+data=APP2
+label=
+location=2
+
+mode=SIMNETTO
+type=key
+data=APP3
+label=
+location=3
+
+mode=SIMNETTO
+type=key
+data=APP4
+event=Mode default
+label=_@M2011_
+location=4
+
+mode=SIMNETTO
+type=key
+data=6
+event=Mode SIMMENU
+label=_@M2112_\n$(GS)
+location=5
+
+mode=SIMNETTO
+type=key
+data=7
+label=_@M2113_\n$(HGPS)
+location=6
+
+mode=SIMNETTO
+type=key
+data=8
+event=Mode SIMDIR
+label=_@M2114_\n$(TURN)°/s
+location=7
+
+mode=SIMNETTO
+type=key
+data=9
+event=ChangeNettoVario down
+label=\n-$(NotInReplay)&(OnlyInSim)
+location=8
+
+mode=SIMNETTO
+type=key
+data=0
+event=ChangeNettoVario up
+label=\n+$(NotInReplay)&(OnlyInSim)
+location=9
+
+mode=SIMNETTO
+type=key
+data=11
+event=Mode SIMNETTO
+label=>_@M1090_<\n$(NETTO)
+location=10
+
+mode=SIMNETTO
 type=key
 data=12
 label= 
@@ -2626,8 +2713,8 @@ location=9
 mode=SIMDIR
 type=key
 data=11
-label= 
-event=Null
+event=Mode SIMNETTO
+label=_@M1089_\n$(NETTO)
 location=10
 
 mode=SIMDIR
@@ -2783,8 +2870,8 @@ mode=PCMODE
 type=key
 data=9
 label=
-label=896 x\n672$(PCONLY)
-event=Service SS896x672
+label=800 x\n600$(PCONLY)
+event=Service SS800x600
 event=Mode default
 location=8
 

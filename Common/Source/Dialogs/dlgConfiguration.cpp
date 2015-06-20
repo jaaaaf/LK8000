@@ -29,6 +29,7 @@
 #include <iterator>
 #include "BtHandler.h"
 #include <functional>
+#include "Sound/Sound.h"
 
 using namespace std::placeholders;
 
@@ -39,24 +40,12 @@ void UpdateComPortSetting(size_t idx, const TCHAR* szPortName);
 void ShowWindowControl(WndForm* pOwner, const TCHAR* WndName, bool bShow);
 
 
-static LKFont TempMapWindowFont;
-static LKFont TempMapLabelFont;
-static LKFont TempUseCustomFontsFont;
-
-extern void InitializeOneFont (LKFont& theFont, 
-                               const char FontRegKey[] , 
-                               LOGFONT autoLogFont, 
-                               LOGFONT * LogFontUsed);
-
-extern bool dlgFontEditShowModal(const TCHAR * FontDescription, 
-                          const char * FontRegKey, 
-                          LOGFONT autoLogFont);
-
 static bool taskchanged = false;
 static bool requirerestart = false;
 static bool utcchanged = false;
 static bool waypointneedsave = false;
-static bool FontRegistryChanged=false;
+static bool fontschanged= false;
+
 
 short configMode=0;	// current configuration mode, 0=system 1=pilot 2=aircraft 3=device
 short config_page[4]={0,0,0,0}; // remember last page we were using, for each profile
@@ -196,7 +185,7 @@ static void UpdateButtons(void) {
     _tcscpy(val,PilotName_Config);
     if (_tcslen(val)<=0) {
 	// LKTOKEN  _@M7_ = "(blank)" 
-      _stprintf(val, gettext(TEXT("_@M7_")));
+      _tcscpy(val, gettext(TEXT("_@M7_")));
     }
 	// LKTOKEN  _@M524_ = "Pilot name" 
     _stprintf(text,TEXT("%s: %s"), gettext(TEXT("_@M524_")), val);
@@ -206,7 +195,7 @@ static void UpdateButtons(void) {
     _tcscpy(val,AircraftType_Config);
     if (_tcslen(val)<=0) {
 	// LKTOKEN  _@M7_ = "(blank)" 
-      _stprintf(val, gettext(TEXT("_@M7_")));
+      _tcscpy(val, gettext(TEXT("_@M7_")));
     }
 	// LKTOKEN  _@M59_ = "Aircraft type" 
     _stprintf(text,TEXT("%s: %s"), gettext(TEXT("_@M59_")), val);
@@ -216,7 +205,7 @@ static void UpdateButtons(void) {
     _tcscpy(val,AircraftRego_Config);
     if (_tcslen(val)<=0) {
 	// LKTOKEN  _@M7_ = "(blank)" 
-      _stprintf(val, gettext(TEXT("_@M7_")));
+      _tcscpy(val, gettext(TEXT("_@M7_")));
     }
 	// LKTOKEN  _@M57_ = "Aircraft Reg" 
     _stprintf(text,TEXT("%s: %s"), gettext(TEXT("_@M57_")), val);
@@ -226,7 +215,7 @@ static void UpdateButtons(void) {
     _tcscpy(val,CompetitionClass_Config);
     if (_tcslen(val)<=0) {
       // LKTOKEN  _@M7_ = "(blank)" 
-      _stprintf(val, gettext(TEXT("_@M7_")));
+      _tcscpy(val, gettext(TEXT("_@M7_")));
     }
 	// LKTOKEN  _@M936_ = "Competition Class" 
     _stprintf(text,TEXT("%s: %s"), gettext(TEXT("_@M936_")), val);
@@ -236,7 +225,7 @@ static void UpdateButtons(void) {
     _tcscpy(val,CompetitionID_Config);
     if (_tcslen(val)<=0) {
       // LKTOKEN  _@M7_ = "(blank)" 
-      _stprintf(val, gettext(TEXT("_@M7_")));
+      _tcscpy(val, gettext(TEXT("_@M7_")));
     }
 	// LKTOKEN  _@M938_ = "Competition ID" 
     _stprintf(text,TEXT("%s: %s"), gettext(TEXT("_@M938_")), val);
@@ -275,6 +264,17 @@ static void NextPage(int Step){
 		else
 			config_page[configMode]=5;
 	}
+        #if 0
+        // Keep menu 12 ready for new font editor
+	if (config_page[configMode]==11) {
+		if (Step>0) 
+			config_page[configMode]=12;
+		else
+			config_page[configMode]=10;
+	}
+        #endif
+
+
   } else {
 	config_page[configMode]=0;
   }
@@ -336,7 +336,7 @@ static void NextPage(int Step){
     break;
   case 11:
 	// LKTOKEN  _@M13_ = "12 Fonts" 
-    wf->SetCaption(gettext(TEXT("_@M13_")));
+    wf->SetCaption(gettext(TEXT("_@M13_"))); // TODO in V6
     break;
   case 12:
 	// LKTOKEN  _@M14_ = "13 Map Overlays " 
@@ -695,126 +695,6 @@ static void OnLk8000ModeChange(DataField *Sender, DataField::DataAccessKind_t Mo
   }
 }
 
-static void ResetFonts(bool bUseCustom) {
-// resest fonts when UseCustomFonts is turned off
-
-  int UseCustomFontsold = UseCustomFonts;
-  UseCustomFonts=bUseCustom;
-
-
-
-  InitializeOneFont (TempUseCustomFontsFont, 
-                        "THIS FONT IS NOT CUSTOMIZABLE", 
-                        autoMapWindowLogFont,
-                        NULL);
-
-  InitializeOneFont (TempMapWindowFont, 
-                        szRegistryFontMapWindowFont, 
-                        autoMapWindowLogFont,
-                        NULL);
-
-  InitializeOneFont (TempMapLabelFont, 
-                        szRegistryFontMapLabelFont, 
-                        autoMapLabelLogFont,
-                        NULL);
-
-  UseCustomFonts=UseCustomFontsold;
-}
-
-static void ShowFontEditButtons(bool bVisible) {
-  WndProperty * wp;
-  wp = (WndProperty*)wf->FindByName(TEXT("cmdMapWindowFont"));
-  if (wp) {
-    wp->SetVisible(bVisible);
-  }
-  wp = (WndProperty*)wf->FindByName(TEXT("cmdMapLabelFont"));
-  if (wp) {
-    wp->SetVisible(bVisible);
-  }
-}
-
-
-static void RefreshFonts(void) {
-
-  WndProperty * wp;
-
-  wp = (WndProperty*)wf->FindByName(TEXT("prpUseCustomFonts"));
-  if (wp) {
-    bool bUseCustomFonts= ((DataFieldBoolean*)(wp->GetDataField()))->GetAsBoolean();
-    ResetFonts(bUseCustomFonts);
-    wp->SetFont(TempUseCustomFontsFont); // this font is never customized
-    wp->SetVisible(false);
-    wp->SetVisible(true);
-    ShowFontEditButtons(bUseCustomFonts);
-
-  }
-
-// now set SampleTexts on the Fonts frame
-  wp = (WndProperty*)wf->FindByName(TEXT("prpMapWindowFont"));
-  if (wp) {
-    wp->SetFont(TempMapWindowFont);
-    wp->SetVisible(false);
-    wp->SetVisible(true);
-  }
-
-  wp = (WndProperty*)wf->FindByName(TEXT("prpMapLabelFont"));
-  if (wp) {
-    wp->SetFont(TempMapLabelFont);
-    wp->SetVisible(false);
-    wp->SetVisible(true);
-  }
-
-}
-
-
-
-static void OnUseCustomFontData(DataField *Sender, DataField::DataAccessKind_t Mode) {
-
-  switch(Mode){
-    case DataField::daGet:
-    break;
-
-    case DataField::daPut: 
-    break;
-
-    case DataField::daChange:
-      RefreshFonts();
-
-    break;
-	default: 
-		StartupStore(_T("........... DBG-904%s"),NEWLINE); // 091105
-		break;
-  }
-}
-
-static void GetFontDescription(TCHAR Description[], const TCHAR * prpName, int iMaxLen)
-{
-  WndProperty * wp;
-  wp = (WndProperty*)wf->FindByName(prpName);
-  if (wp) {
-    LK_tcsncpy(Description, wp->GetCaption(), iMaxLen-1);
-  }
-}
-
-static void OnEditMapWindowFontClicked(WndButton* pWnd) {
-    TCHAR fontDesc[MAX_EDITFONT_DESC_LEN + 1];
-    GetFontDescription(fontDesc, TEXT("prpMapWindowFont"), MAX_EDITFONT_DESC_LEN);
-    if (dlgFontEditShowModal(fontDesc,
-            szRegistryFontMapWindowFont,
-            autoMapWindowLogFont)) {
-        FontRegistryChanged = true;
-        RefreshFonts();
-    }
-}
-
-static void OnEditMapLabelFontClicked(WndButton* pWnd) {
-    TCHAR fontDesc[MAX_EDITFONT_DESC_LEN + 1];
-    GetFontDescription(fontDesc, TEXT("prpMapLabelFont"), MAX_EDITFONT_DESC_LEN);
-    if (dlgFontEditShowModal(fontDesc, szRegistryFontMapLabelFont, autoMapLabelLogFont)) {
-        FontRegistryChanged = true;
-        RefreshFonts();
-    }
-}
 
 static void OnAircraftRegoClicked(WndButton* pWnd) {
     TCHAR Temp[100];
@@ -1297,19 +1177,36 @@ void UpdateComPortSetting(size_t idx, const TCHAR* szPortName) {
         { _T("prpComSpeed1"), _T("prpComBit1") }, 
         { _T("prpComSpeed2"), _T("prpComBit2") }
     };
-    
-    assert(szPortName);
+    const TCHAR * prpExtSound[2] = {
+            _T("prpExtSound1"),
+            _T("prpExtSound2")
+        };
+
+    LKASSERT(szPortName);
     // check if all array have same size ( compil time check );
     static_assert(array_size(DeviceList) == array_size(PortPropName), "PortPropName array size need to be same of DeviceList array size");
-    
-    if(std::begin(PortPropName)+idx < std::end(PortPropName)) {
-        bool bHide =  (DeviceList[idx].Disabled || ((_tcslen(szPortName) > 3) && (_tcsncmp(szPortName, _T("BT:"), 3) == 0)));
-        bHide = bHide || (_tcscmp(DeviceList[idx].Name, _T("Internal")) == 0);
+    static_assert(array_size(DeviceList) == array_size(prpExtSound), "prpExtSound array size need to be same of DeviceList array size");
+
+#ifdef DISABLEEXTAUDIO    
+    bool bManageExtAudio = false;
+#else
+    bool bManageExtAudio = true;
+#endif
+    bManageExtAudio &= IsSoundInit();
+    bool bHide = (DeviceList[idx].Disabled || (_tcscmp(DeviceList[idx].Name, _T("Internal")) == 0));
+    bool bBt = ((_tcslen(szPortName) > 3) && (_tcsncmp(szPortName, _T("BT:"), 3) == 0));
+
+    // For com port properties, hide them for disable, internal or Bluetooth, show otherwise
+    if (std::begin(PortPropName) + idx < std::end(PortPropName)) {
         std::for_each(
-            std::begin(PortPropName[idx]), 
-            std::end(PortPropName[idx]), 
-            std::bind(ShowWindowControl, wf, _1, !bHide)
-        );
+                std::begin(PortPropName[idx]),
+                std::end(PortPropName[idx]),
+                std::bind(ShowWindowControl, wf, _1, !(bHide || bBt))
+                );
+    }
+    // Manage external sounds only if necessary
+    if (bManageExtAudio) {
+        ShowWindowControl(wf, prpExtSound[idx], !bHide);
     }
 }
 
@@ -1361,9 +1258,6 @@ static CallBackTableEntry_t CallBackTable[]={
   DataAccessCallbackEntry(OnComPort1Data),
   DataAccessCallbackEntry(OnComPort2Data),
 
-  DataAccessCallbackEntry(OnUseCustomFontData),
-  ClickNotifyCallbackEntry(OnEditMapWindowFontClicked),
-  ClickNotifyCallbackEntry(OnEditMapLabelFontClicked),
 
   ClickNotifyCallbackEntry(OnSetTopologyClicked),
   ClickNotifyCallbackEntry(OnSetCustomKeysClicked),
@@ -1587,6 +1481,11 @@ static void setVariables(void) {
     dfe->Set(dwBit1Index);
     wp->RefreshDisplay();
   }
+  wp = (WndProperty*)wf->FindByName(TEXT("prpExtSound1"));
+  if (wp) {
+    wp->GetDataField()->Set(UseExtSound1);
+    wp->RefreshDisplay();
+  }
 
   TCHAR deviceName1[MAX_PATH];
   TCHAR deviceName2[MAX_PATH];
@@ -1635,6 +1534,12 @@ static void setVariables(void) {
     dfe->addEnumText(TEXT("8bit"));
     dfe->addEnumText(TEXT("7bit"));
     dfe->Set(dwBit2Index);
+    wp->RefreshDisplay();
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpExtSound2"));
+  if (wp) {
+    wp->GetDataField()->Set(UseExtSound2);
     wp->RefreshDisplay();
   }
 
@@ -1748,6 +1653,131 @@ static void setVariables(void) {
     wp->RefreshDisplay();
   }
 
+  //
+  // Font manager
+  //
+  wp = (WndProperty*)wf->FindByName(TEXT("prpFontMapWaypoint"));
+  if (wp) {
+    DataFieldEnum* dfe;
+    dfe = (DataFieldEnum*)wp->GetDataField();
+    dfe->addEnumText(TEXT("-5"));
+    dfe->addEnumText(TEXT("-4"));
+    dfe->addEnumText(TEXT("-3"));
+    dfe->addEnumText(TEXT("-2"));
+    dfe->addEnumText(TEXT("-1"));
+    dfe->addEnumText(TEXT("0"));
+    dfe->addEnumText(TEXT("+1"));
+    dfe->addEnumText(TEXT("+2"));
+    dfe->addEnumText(TEXT("+3"));
+    dfe->addEnumText(TEXT("+4"));
+    dfe->addEnumText(TEXT("+5"));
+    dfe->Set(FontMapWaypoint);
+    wp->RefreshDisplay();
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpFontMapTopology"));
+  if (wp) {
+    DataFieldEnum* dfe;
+    dfe = (DataFieldEnum*)wp->GetDataField();
+    dfe->addEnumText(TEXT("-5"));
+    dfe->addEnumText(TEXT("-4"));
+    dfe->addEnumText(TEXT("-3"));
+    dfe->addEnumText(TEXT("-2"));
+    dfe->addEnumText(TEXT("-1"));
+    dfe->addEnumText(TEXT("0"));
+    dfe->addEnumText(TEXT("+1"));
+    dfe->addEnumText(TEXT("+2"));
+    dfe->addEnumText(TEXT("+3"));
+    dfe->addEnumText(TEXT("+4"));
+    dfe->addEnumText(TEXT("+5"));
+    dfe->Set(FontMapTopology);
+    wp->RefreshDisplay();
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpFontInfopage1L"));
+  if (wp) {
+    DataFieldEnum* dfe;
+    dfe = (DataFieldEnum*)wp->GetDataField();
+    dfe->addEnumText(TEXT("-5"));
+    dfe->addEnumText(TEXT("-4"));
+    dfe->addEnumText(TEXT("-3"));
+    dfe->addEnumText(TEXT("-2"));
+    dfe->addEnumText(TEXT("-1"));
+    dfe->addEnumText(TEXT("0"));
+    dfe->addEnumText(TEXT("+1"));
+    dfe->addEnumText(TEXT("+2"));
+    dfe->addEnumText(TEXT("+3"));
+    dfe->addEnumText(TEXT("+4"));
+    dfe->addEnumText(TEXT("+5"));
+    dfe->Set(FontInfopage1L);
+    wp->RefreshDisplay();
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpFontBottomBar"));
+  if (wp) {
+    DataFieldEnum* dfe;
+    dfe = (DataFieldEnum*)wp->GetDataField();
+    dfe->addEnumText(TEXT("-5"));
+    dfe->addEnumText(TEXT("-4"));
+    dfe->addEnumText(TEXT("-3"));
+    dfe->addEnumText(TEXT("-2"));
+    dfe->addEnumText(TEXT("-1"));
+    dfe->addEnumText(TEXT("0"));
+    dfe->addEnumText(TEXT("+1"));
+    dfe->addEnumText(TEXT("+2"));
+    dfe->addEnumText(TEXT("+3"));
+    dfe->addEnumText(TEXT("+4"));
+    dfe->addEnumText(TEXT("+5"));
+    dfe->Set(FontBottomBar);
+    wp->RefreshDisplay();
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpOverlayTarget"));
+  if (wp) {
+    DataFieldEnum* dfe;
+    dfe = (DataFieldEnum*)wp->GetDataField();
+    dfe->addEnumText(TEXT("-5"));
+    dfe->addEnumText(TEXT("-4"));
+    dfe->addEnumText(TEXT("-3"));
+    dfe->addEnumText(TEXT("-2"));
+    dfe->addEnumText(TEXT("-1"));
+    dfe->addEnumText(TEXT("0"));
+    dfe->addEnumText(TEXT("+1"));
+    dfe->addEnumText(TEXT("+2"));
+    dfe->addEnumText(TEXT("+3"));
+    dfe->addEnumText(TEXT("+4"));
+    dfe->addEnumText(TEXT("+5"));
+    dfe->Set(FontOverlayMedium);
+    wp->RefreshDisplay();
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpOverlayValues"));
+  if (wp) {
+    DataFieldEnum* dfe;
+    dfe = (DataFieldEnum*)wp->GetDataField();
+    dfe->addEnumText(TEXT("-5"));
+    dfe->addEnumText(TEXT("-4"));
+    dfe->addEnumText(TEXT("-3"));
+    dfe->addEnumText(TEXT("-2"));
+    dfe->addEnumText(TEXT("-1"));
+    dfe->addEnumText(TEXT("0"));
+    dfe->addEnumText(TEXT("+1"));
+    dfe->addEnumText(TEXT("+2"));
+    dfe->addEnumText(TEXT("+3"));
+    dfe->addEnumText(TEXT("+4"));
+    dfe->addEnumText(TEXT("+5"));
+    dfe->Set(FontOverlayBig);
+    wp->RefreshDisplay();
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpUseTwoLines"));
+  if (wp) {
+    wp->GetDataField()->Set(UseTwoLines);
+    if (ScreenLandscape) wp->SetReadOnly(true);
+    wp->RefreshDisplay();
+  }
+
+
   wp = (WndProperty*)wf->FindByName(TEXT("prpFontRenderer"));
   if (wp) {
     DataFieldEnum* dfe;
@@ -1758,6 +1788,9 @@ static void setVariables(void) {
     dfe->addEnumText(gettext(TEXT("_@M480_"))); // Normal
     dfe->addEnumText(gettext(TEXT("_@M479_"))); // None
     dfe->Set(FontRenderer);
+    #ifdef __linux__
+    wp->SetVisible(false);
+    #endif
     wp->RefreshDisplay();
   }
   
@@ -2163,6 +2196,12 @@ static void setVariables(void) {
   wp = (WndProperty*)wf->FindByName(TEXT("prpSetSystemTimeFromGPS"));
   if (wp) {
     wp->GetDataField()->Set(SetSystemTimeFromGPS);
+    wp->RefreshDisplay();
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpSaveRuntime"));
+  if (wp) {
+    wp->GetDataField()->Set(SaveRuntime);
     wp->RefreshDisplay();
   }
 
@@ -2622,7 +2661,7 @@ static void setVariables(void) {
   wp = (WndProperty*)wf->FindByName(TEXT("prpUseUngestures"));
   if (wp) {
     DataField* dfe = wp->GetDataField();
-    assert(dfe);
+    LKASSERT(dfe);
     if(dfe) {
         dfe->Set(UseUngestures);
     }
@@ -2889,20 +2928,6 @@ static void setVariables(void) {
     wp->RefreshDisplay();
  }
 
-// Fonts
-  wp = (WndProperty*)wf->FindByName(TEXT("prpUseCustomFonts"));
-  if (wp) {
-    DataFieldBoolean * dfb = (DataFieldBoolean*) wp->GetDataField();
-    dfb->Set(UseCustomFonts);
-    ShowFontEditButtons(dfb->GetAsBoolean());
-    wp->RefreshDisplay();
-    RefreshFonts();
-  }
-  FontRegistryChanged=false;
-
-
-// end fonts
-
 
   wp = (WndProperty*)wf->FindByName(TEXT("prpAppIndLandable"));
   if (wp) {
@@ -2976,6 +3001,7 @@ static void setVariables(void) {
 	// LKTOKEN  _@M340_ = "HighContrast" 
     dfe->addEnumText(gettext(TEXT("_@M340_")));
     dfe->addEnumText(TEXT("GA Relative"));
+    dfe->addEnumText(TEXT("LiteAlps"));
     dfe->Set(TerrainRamp_Config);
     wp->RefreshDisplay();
   }
@@ -3202,70 +3228,34 @@ void dlgConfigurationShowModal(short mode){
 
   configMode=mode;
 
+  static const TCHAR* dlgTemplate_L [][2] = { 
+      { TEXT("dlgConfiguration_L.xml"),  TEXT("IDR_XML_CONFIGURATION_L") },
+      { TEXT("dlgConfigPilot_L.xml"), TEXT("IDR_XML_CONFIGPILOT_L") },
+      { TEXT("dlgConfigAircraft_L.xml"), TEXT("IDR_XML_CONFIGAIRCRAFT_L") },
+      { TEXT("dlgConfigDevice_L.xml"), TEXT("IDR_XML_CONFIGDEVICE_L") }
+  };
+  static const TCHAR* dlgTemplate_P [][2] = { 
+      { TEXT("dlgConfiguration_P.xml"),  TEXT("IDR_XML_CONFIGURATION_P") },
+      { TEXT("dlgConfigPilot_P.xml"), TEXT("IDR_XML_CONFIGPILOT_P") },
+      { TEXT("dlgConfigAircraft_P.xml"), TEXT("IDR_XML_CONFIGAIRCRAFT_P") },
+      { TEXT("dlgConfigDevice_P.xml"), TEXT("IDR_XML_CONFIGDEVICE_P") }
+  };
+  static_assert(array_size(dlgTemplate_L) == array_size(dlgTemplate_P), "check array size");
+  
   StartHourglassCursor(); 
 
-  if (!ScreenLandscape) {
-	TCHAR filename[MAX_PATH];
-	switch(configMode) {
-		case 0:
-			LocalPathS(filename, TEXT("dlgConfiguration_L.xml"));
-			wf = dlgLoadFromXML(CallBackTable, 
-				filename, 
-				TEXT("IDR_XML_CONFIGURATION_L"));
-			break;
-		case 1:
-			LocalPathS(filename, TEXT("dlgConfigPilot_L.xml"));
-			wf = dlgLoadFromXML(CallBackTable, 
-				filename, 
-				TEXT("IDR_XML_CONFIGPILOT_L"));
-			break;
-		case 2:
-			LocalPathS(filename, TEXT("dlgConfigAircraft_L.xml"));
-			wf = dlgLoadFromXML(CallBackTable, 
-				filename, 
-				TEXT("IDR_XML_CONFIGAIRCRAFT_L"));
-			break;
-		case 3:
-			LocalPathS(filename, TEXT("dlgConfigDevice_L.xml"));
-			wf = dlgLoadFromXML(CallBackTable, 
-				filename, 
-				TEXT("IDR_XML_CONFIGDEVICE_L"));
-			break;
-		default:
-			break;
-	}
+  if(configMode >= 0 && configMode < (int)array_size(dlgTemplate_L)) {
+    
+      auto dlgTemplate = ScreenLandscape ? dlgTemplate_L[configMode] : dlgTemplate_P[configMode];
+    TCHAR filename[MAX_PATH];
+  
+    LocalPathS(filename,  dlgTemplate[0]);
+    wf = dlgLoadFromXML(CallBackTable, filename, dlgTemplate[1]);
+    
   } else {
-	TCHAR filename[MAX_PATH];
-	switch(configMode) {
-		case 0:
-			LocalPathS(filename, TEXT("dlgConfiguration.xml"));
-			wf = dlgLoadFromXML(CallBackTable, 
-				filename, 
-				TEXT("IDR_XML_CONFIGURATION"));
-			break;
-		case 1:
-			LocalPathS(filename, TEXT("dlgConfigPilot.xml"));
-			wf = dlgLoadFromXML(CallBackTable, 
-				filename, 
-				TEXT("IDR_XML_CONFIGPILOT"));
-			break;
-		case 2:
-			LocalPathS(filename, TEXT("dlgConfigAircraft.xml"));
-			wf = dlgLoadFromXML(CallBackTable, 
-				filename, 
-				TEXT("IDR_XML_CONFIGAIRCRAFT"));
-			break;
-		case 3:
-			LocalPathS(filename, TEXT("dlgConfigDevice.xml"));
-			wf = dlgLoadFromXML(CallBackTable, 
-				filename, 
-				TEXT("IDR_XML_CONFIGDEVICE"));
-			break;
-		default:
-			break;
-	}
+      wf = nullptr;
   }
-
+  
   if (!wf) {
 	return;
   }
@@ -3364,6 +3354,16 @@ void dlgConfigurationShowModal(short mode){
 	ReadDeviceSettings(1, deviceName2);
 	UpdateDeviceSetupButton(0, deviceName1);
 	UpdateDeviceSetupButton(1, deviceName2);
+// Don't show external sound config if not compiled for this device or not used
+#ifdef DISABLEEXTAUDIO
+        ShowWindowControl(wf, _T("prpExtSound1"), false);
+        ShowWindowControl(wf, _T("prpExtSound2"), false);
+#else
+        if (!IsSoundInit()) {
+            ShowWindowControl(wf, _T("prpExtSound1"), false);
+            ShowWindowControl(wf, _T("prpExtSound2"), false);
+        }
+#endif
   }
 
   NextPage(0);
@@ -3409,6 +3409,13 @@ void dlgConfigurationShowModal(short mode){
   if (wp) {
     if (SetSystemTimeFromGPS != wp->GetDataField()->GetAsBoolean()) {
       SetSystemTimeFromGPS = wp->GetDataField()->GetAsBoolean();
+    }
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpSaveRuntime"));
+  if (wp) {
+    if (SaveRuntime != wp->GetDataField()->GetAsBoolean()) {
+      SaveRuntime = wp->GetDataField()->GetAsBoolean();
     }
   }
 
@@ -3553,7 +3560,62 @@ double dval;
 	BarOpacity= wp->GetDataField()->GetAsInteger() * 5;
     }
   }
+
   
+  wp = (WndProperty*)wf->FindByName(TEXT("prpFontMapWaypoint"));
+  if (wp) {
+      if (FontMapWaypoint != wp->GetDataField()->GetAsInteger() ) {
+          FontMapWaypoint = wp->GetDataField()->GetAsInteger();
+          fontschanged=true;
+      }
+  }
+  wp = (WndProperty*)wf->FindByName(TEXT("prpFontMapTopology"));
+  if (wp) {
+      if (FontMapTopology != wp->GetDataField()->GetAsInteger() ) {
+          FontMapTopology = wp->GetDataField()->GetAsInteger();
+          fontschanged=true;
+      }
+  }
+  wp = (WndProperty*)wf->FindByName(TEXT("prpFontInfopage1L"));
+  if (wp) {
+      if (FontInfopage1L != wp->GetDataField()->GetAsInteger() ) {
+          FontInfopage1L = wp->GetDataField()->GetAsInteger();
+          fontschanged=true;
+      }
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpFontBottomBar"));
+  if (wp) {
+      if (FontBottomBar != wp->GetDataField()->GetAsInteger() ) {
+          FontBottomBar = wp->GetDataField()->GetAsInteger();
+          fontschanged=true;
+      }
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpOverlayTarget"));
+  if (wp) {
+      if (FontOverlayMedium != wp->GetDataField()->GetAsInteger() ) {
+          FontOverlayMedium = wp->GetDataField()->GetAsInteger();
+          fontschanged=true;
+      }
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpOverlayValues"));
+  if (wp) {
+      if (FontOverlayBig != wp->GetDataField()->GetAsInteger() ) {
+          FontOverlayBig = wp->GetDataField()->GetAsInteger();
+          fontschanged=true;
+      }
+  }
+
+  wp = (WndProperty*)wf->FindByName(TEXT("prpUseTwoLines"));
+  if (wp) {
+      if (UseTwoLines != wp->GetDataField()->GetAsBoolean()) {
+          UseTwoLines = wp->GetDataField()->GetAsBoolean();
+          Reset_Single_DoInits(MDI_DRAWNEAREST);
+    }
+  }
+
   wp = (WndProperty*)wf->FindByName(TEXT("prpFontRenderer"));
   if (wp) {
     if (FontRenderer != wp->GetDataField()->GetAsInteger() ) 
@@ -4007,14 +4069,13 @@ int ival;
 	(wp->GetDataField()->GetAsInteger());
     }
   }
-  wp = (WndProperty*)wf->FindByName(TEXT("prpHideUnits")); // VENTA6
+  wp = (WndProperty*)wf->FindByName(TEXT("prpHideUnits"));
   if (wp) {
-    if (HideUnits != (HideUnits_t)
-	(wp->GetDataField()->GetAsInteger())) {
-      HideUnits = (HideUnits_t)
-	(wp->GetDataField()->GetAsInteger());
-      requirerestart = true;
-    }
+      if (HideUnits != (HideUnits_t) (wp->GetDataField()->GetAsInteger())) {
+          HideUnits = (HideUnits_t) (wp->GetDataField()->GetAsInteger());
+          Reset_Single_DoInits(MDI_DRAWBOTTOMBAR);
+          Reset_Single_DoInits(MDI_DRAWFLIGHTMODE);
+      }
   }
   wp = (WndProperty*)wf->FindByName(TEXT("prpDeclutterMode")); // VENTA10
   if (wp) {
@@ -4264,19 +4325,6 @@ int ival;
   }
 //
 
-  //Fonts
-  int UseCustomFontsold = UseCustomFonts;
-  wp = (WndProperty*)wf->FindByName(TEXT("prpUseCustomFonts"));
-  if (wp) {
-    DataFieldBoolean * dfb = (DataFieldBoolean*) wp->GetDataField();
-    if (dfb) {
-      UseCustomFonts = dfb->GetAsInteger(); // global var
-    }
-  }
-  if ( (UseCustomFontsold != UseCustomFonts) ||
-    (UseCustomFonts && FontRegistryChanged) ) {
-      requirerestart = true;
-  }
 
   wp = (WndProperty*)wf->FindByName(TEXT("prpAppIndLandable"));
   if (wp) {
@@ -4439,6 +4487,13 @@ int ival;
       }
   }
 
+  wp = (WndProperty*)wf->FindByName(TEXT("prpExtSound1"));
+  if (wp) {
+	if (UseExtSound1 != (wp->GetDataField()->GetAsInteger())) {
+		UseExtSound1 = (wp->GetDataField()->GetAsInteger());
+	}
+  }
+  
   wp = (WndProperty*)wf->FindByName(TEXT("prpComSpeed1"));
   if (wp) {
     if ((int)dwSpeedIndex1 != wp->GetDataField()->GetAsInteger()) {
@@ -4473,6 +4528,13 @@ int ival;
           _tcscpy(szPort2, It->GetName());
           COMPORTCHANGED = true;
       }
+  }
+  
+  wp = (WndProperty*)wf->FindByName(TEXT("prpExtSound2"));
+  if (wp) {
+	if (UseExtSound2 != (wp->GetDataField()->GetAsInteger())) {
+		UseExtSound2 = (wp->GetDataField()->GetAsInteger());
+	}
   }
 
   wp = (WndProperty*)wf->FindByName(TEXT("prpComSpeed2"));
@@ -4539,6 +4601,13 @@ int ival;
     RefreshTask();
   }
 
+  if (fontschanged) {
+      #if TESTBENCH
+      StartupStore(_T("..... dlgConfiguration: fontschanged requested\n"));
+      #endif
+      FONTSCHANGED=true;
+  }
+
 #if (WINDOWSPC>0)
   if (COMPORTCHANGED) {
     requirerestart = true;
@@ -4558,10 +4627,6 @@ int ival;
 
   wf = NULL;
   
-    TempMapWindowFont.Release();
-    TempMapLabelFont.Release();
-    TempUseCustomFontsFont.Release();
-
 
 }
 

@@ -10,6 +10,8 @@
 #include "Logger.h"
 #include "LKInterface.h"
 #include "Multimap.h"
+#include "Asset.hpp"
+#include "OS/RotateScreen.h"
 
 extern bool HaveGauges(void);
 
@@ -418,28 +420,28 @@ bool ExpandMacros(const TCHAR *In, TCHAR *OutBuffer, size_t Size){
 		case 36: // 
 			// Order is:  ALL ON, TASK ONLY, FAI ONLY, ALL OFF
 			if (Flags_DrawTask&&Flags_DrawFAI) {
-				_stprintf(OutBuffer,MsgToken(2238)); // Draw Task
+				_tcscpy(OutBuffer,MsgToken(2238)); // Draw Task
 			} else {
 				if (Flags_DrawTask&&!Flags_DrawFAI) {
-					_stprintf(OutBuffer,MsgToken(2239)); // Draw FAI
+					_tcscpy(OutBuffer,MsgToken(2239)); // Draw FAI
 				} else {
 					if (!Flags_DrawTask&&Flags_DrawFAI) {
-						_stprintf(OutBuffer,MsgToken(2240)); // NoDraw TaskFAI
+						_tcscpy(OutBuffer,MsgToken(2240)); // NoDraw TaskFAI
 					} else {
-						_stprintf(OutBuffer,MsgToken(2241)); // Draw TaskFAI
+						_tcscpy(OutBuffer,MsgToken(2241)); // Draw TaskFAI
 					}
 				}
 			}
 			break;
 		case 37: //
 			if (SonarWarning)
-				_stprintf(OutBuffer,MsgToken(2243)); // Sonar OFF
+				_tcscpy(OutBuffer,MsgToken(2243)); // Sonar OFF
 			else
-				_stprintf(OutBuffer,MsgToken(2242)); // Sonar ON
+				_tcscpy(OutBuffer,MsgToken(2242)); // Sonar ON
 			break;
 		case 38: //
 			if (MapSpaceMode!=MSM_MAP) invalid=true;
-			_stprintf(OutBuffer,MsgToken(2081)); // Set Map
+			_tcscpy(OutBuffer,MsgToken(2081)); // Set Map
 			break;
 		case 39:
 			if (! (ValidTaskPoint(ActiveWayPoint) && ValidTaskPoint(1))) {
@@ -628,6 +630,12 @@ bool ExpandMacros(const TCHAR *In, TCHAR *OutBuffer, size_t Size){
 	ReplaceInString(OutBuffer, TEXT("$(TURN)"), tbuf, Size);
 	if (--items<=0) goto label_ret;
   }
+  if (_tcsstr(OutBuffer, TEXT("$(NETTO"))) {
+	TCHAR tbuf[10];
+	_stprintf(tbuf,_T("%.1f"),SimNettoVario);
+	ReplaceInString(OutBuffer, TEXT("$(NETTO)"), tbuf, Size);
+	if (--items<=0) goto label_ret;
+  }
 
 
   if (_tcsstr(OutBuffer, TEXT("$(LoggerActive)"))) {
@@ -658,22 +666,22 @@ bool ExpandMacros(const TCHAR *In, TCHAR *OutBuffer, size_t Size){
 
 
   if (_tcsstr(OutBuffer, TEXT("$(PCONLY)"))) {
-    #if (WINDOWSPC>0)
-    ReplaceInString(OutBuffer, TEXT("$(PCONLY)"), TEXT(""), Size);
-    #else
-    _tcscpy(OutBuffer,_T(""));
-    invalid = true;
-    #endif
+      if(IsEmbedded()) {
+        _tcscpy(OutBuffer,_T(""));
+        invalid = true;
+      } else {
+        ReplaceInString(OutBuffer, TEXT("$(PCONLY)"), TEXT(""), Size);
+      }
     if (--items<=0) goto label_ret;
   }
   if (_tcsstr(OutBuffer, TEXT("$(NOTPC)"))) {
-    #if (WINDOWSPC>0)
-    _tcscpy(OutBuffer,_T(""));
-    invalid = true;
-    #else
-    ReplaceInString(OutBuffer, TEXT("$(NOTPC)"), TEXT(""), Size);
-    #endif
-    if (--items<=0) goto label_ret;
+      if(IsEmbedded()) {
+        ReplaceInString(OutBuffer, TEXT("$(NOTPC)"), TEXT(""), Size);
+      } else {
+        _tcscpy(OutBuffer,_T(""));
+        invalid = true;
+      }
+      if (--items<=0) goto label_ret;
   }
 
   if (_tcsstr(OutBuffer, TEXT("$(ONLYMAP)"))) {
@@ -681,6 +689,16 @@ bool ExpandMacros(const TCHAR *In, TCHAR *OutBuffer, size_t Size){
     ReplaceInString(OutBuffer, TEXT("$(ONLYMAP)"), TEXT(""), Size);
 
     if (--items<=0) goto label_ret;
+  }
+  
+  if (_tcsstr(OutBuffer, TEXT("$(SCREENROTATE)"))) {
+      if(CanRotateScreen()) {
+        ReplaceInString(OutBuffer, TEXT("$(SCREENROTATE)"), TEXT(""), Size);
+      } else {
+        _tcscpy(OutBuffer,_T(""));
+        invalid = true;
+      }
+      if (--items<=0) goto label_ret;
   }
 
   extern unsigned int CustomKeyLabel[];
@@ -736,7 +754,7 @@ bool ExpandMacros(const TCHAR *In, TCHAR *OutBuffer, size_t Size){
 		// _stprintf(OutBuffer,_T("Key\n%d"),i);
 		 _tcscpy(OutBuffer,_T(""));	// make it invisible
 	} else {
-		_stprintf(OutBuffer,MsgToken( CustomKeyLabel[ckeymode] ));
+		_tcscpy(OutBuffer,MsgToken( CustomKeyLabel[ckeymode] ));
 	}
 
   } // MM

@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include "Poco/RunnableAdapter.h"
 
-ComPort::ComPort(int idx, const std::tstring& sName) : devIdx(idx), sPortName(sName) {
+ComPort::ComPort(int idx, const std::tstring& sName) : StopEvt(false), devIdx(idx), sPortName(sName) {
     pLastNmea = std::begin(_NmeaString);
 }
 
@@ -52,11 +52,15 @@ return;
     int size_needed = WideCharToMultiByte(CP_ACP, 0, Text, len+1, NULL, 0, NULL, NULL);
     char* szTmp = new char[size_needed];
     len = WideCharToMultiByte(CP_ACP, 0, Text, len+1, szTmp, size_needed, NULL, NULL);
+    if(len>0) {
+        // WideCharToMultiByte return size off Buffer, so trailling '\0' included...
+        --len;
+    }
 #else
     const char* szTmp = Text;
 #endif
     // don't write trailing '\0' to device
-    if (--len > 0) {
+    if (len > 0) {
         Write(szTmp, len);
     }
 #ifdef _UNICODE
@@ -88,9 +92,11 @@ bool ComPort::StopRxThread() {
 #ifdef _DEBUG_STOP_RXTHREAD
     StartupStore(_T("... ComPort %d StopRxThread: Wait End of thread !%s"), GetPortIndex() + 1, NEWLINE);
 #endif
-    if (!ReadThread.tryJoin(20000)) {
-        StartupStore(_T("... ComPort %d StopRxThread: RX Thread forced to terminate!%s"), GetPortIndex() + 1, NEWLINE);
-        // TODO : Kill Thread ??
+    if (ReadThread.isRunning()) {
+        if(!ReadThread.tryJoin(20000)) {
+            StartupStore(_T("... ComPort %d StopRxThread: RX Thread forced to terminate!%s"), GetPortIndex() + 1, NEWLINE);
+            // TODO : Kill Thread ??
+        }
     }
     StopEvt.reset();
 
@@ -105,7 +111,7 @@ bool ComPort::StartRxThread() {
     ReadThread.start(*this);
     ReadThread.setPriority(Poco::Thread::PRIO_NORMAL); //THREAD_PRIORITY_ABOVE_NORMAL
 
-    if(ReadThread.isRunning()) {
+    if(!ReadThread.isRunning()) {
         // Could not create the read thread.
         StartupStore(_T(". ComPort %u <%s> Failed to start Rx Thread%s"), GetPortIndex() + 1, GetPortName(), NEWLINE);
 

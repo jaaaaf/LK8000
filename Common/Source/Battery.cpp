@@ -2,11 +2,15 @@
    LK8000 Tactical Flight Computer -  WWW.LK8000.IT
    Released under GNU/GPL License v.2
    See CREDITS.TXT file for authors and copyrights
+ * 
+ * linux code adapted from XCSoar original source code Battery.cpp
+ * 
 
    $Id$
 */
 
 #include "externs.h"
+#include "Sound/Sound.h"
 
 #if defined(PNA) && defined(UNDER_CE)
 #include "LKHolux.h"
@@ -15,8 +19,9 @@
 #include "DoInits.h"
 
 
+#ifdef WIN32
 #ifdef UNDER_CE
-DWORD GetBatteryInfo(BATTERYINFO* pBatteryInfo)
+bool GetBatteryInfo(BATTERYINFO* pBatteryInfo)
 {
     // set default return value
     DWORD result = 0;
@@ -24,7 +29,7 @@ DWORD GetBatteryInfo(BATTERYINFO* pBatteryInfo)
     // check incoming pointer
     if(NULL == pBatteryInfo)
     {
-        return 0;
+        return false;
     }
 
     SYSTEM_POWER_STATUS_EX2 sps;
@@ -33,16 +38,88 @@ DWORD GetBatteryInfo(BATTERYINFO* pBatteryInfo)
     result = GetSystemPowerStatusEx2(&sps, sizeof(sps), TRUE);
 
     // only update the caller if the previous call succeeded
-    if(0 != result)
+    if(result)
     {
-        pBatteryInfo->acStatus = sps.ACLineStatus;
-        pBatteryInfo->chargeStatus = sps.BatteryFlag;
+        pBatteryInfo->acStatus = static_cast<Battery::battery_status>(sps.ACLineStatus);
+        pBatteryInfo->chargeStatus = static_cast<Battery::battery_charge_status>(sps.BatteryFlag);
         pBatteryInfo->BatteryLifePercent = sps.BatteryLifePercent;
-	pBatteryInfo->BatteryVoltage = sps.BatteryVoltage;
-	pBatteryInfo->BatteryAverageCurrent = sps.BatteryAverageCurrent;
-	pBatteryInfo->BatteryCurrent = sps.BatteryCurrent;
-	pBatteryInfo->BatterymAHourConsumed = sps.BatterymAHourConsumed;
-	pBatteryInfo->BatteryTemperature = sps.BatteryTemperature;
+        pBatteryInfo->BatteryVoltage = sps.BatteryVoltage;
+        pBatteryInfo->BatteryAverageCurrent = sps.BatteryAverageCurrent;
+        pBatteryInfo->BatteryCurrent = sps.BatteryCurrent;
+        pBatteryInfo->BatterymAHourConsumed = sps.BatterymAHourConsumed;
+        pBatteryInfo->BatteryTemperature = sps.BatteryTemperature;
+    }
+
+    return (result != 0);
+}
+#else
+bool GetBatteryInfo(BATTERYINFO* pBatteryInfo) {
+    // not implemented on Windows PC
+    if(!pBatteryInfo) {
+        return false;
+    }
+    pBatteryInfo->BatteryLifePercent = BATTERY_UNKNOWN;
+    pBatteryInfo->acStatus = Battery::UNKNOWN;
+    pBatteryInfo->chargeStatus = Battery::CHARGE_UNKNOWN;
+    
+    return false;
+}
+#endif
+#endif
+
+#ifdef KOBO
+#include "OS/FileUtil.hpp"
+
+bool GetBatteryInfo(BATTERYINFO* pBatteryInfo)
+{
+    // check incoming pointer
+    if(NULL == pBatteryInfo)
+    {
+        return false;
+    }
+
+    // set default return value
+    bool result = false;
+
+    // assume failure at entry
+    pBatteryInfo->BatteryLifePercent = BATTERY_UNKNOWN;
+    pBatteryInfo->acStatus = Battery::UNKNOWN;
+    pBatteryInfo->chargeStatus = Battery::CHARGE_UNKNOWN;
+
+    // code shamelessly copied from OS/SystemLoad.cpp
+    char line[256];
+    if (!File::ReadString("/sys/bus/platform/drivers/pmic_battery/pmic_battery.1/power_supply/mc13892_bat/uevent",
+            line, sizeof (line))) {
+        return false;
+    }
+
+    char field[80], value[80];
+    int n;
+    char* ptr = line;
+    while (sscanf(ptr, "%[^=]=%[^\n]\n%n", field, value, &n) == 2) {
+        ptr += n;
+        if (!strcmp(field, "POWER_SUPPLY_STATUS")) {
+            if (!strcmp(value, "Not charging") || !strcmp(value, "Charging")) {
+                pBatteryInfo->acStatus = Battery::ONLINE;
+            } else if (!strcmp(value, "Discharging")) {
+                pBatteryInfo->acStatus = Battery::OFFLINE;
+            }
+        } else if (!strcmp(field, "POWER_SUPPLY_CAPACITY")) {
+            result = true;
+            int rem = atoi(value);
+            pBatteryInfo->BatteryLifePercent = rem;
+            if (pBatteryInfo->acStatus == Battery::OFFLINE) {
+                if (rem > 30) {
+                    pBatteryInfo->chargeStatus = Battery::HIGH;
+                } else if (rem >= 10) {
+                    pBatteryInfo->chargeStatus = Battery::LOW;
+                } else if (rem < 10) {
+                    pBatteryInfo->chargeStatus = Battery::CRITICAL;
+                }
+            } else {
+                pBatteryInfo->chargeStatus = Battery::CHARGING;
+            }
+        }
     }
 
     return result;
@@ -50,10 +127,93 @@ DWORD GetBatteryInfo(BATTERYINFO* pBatteryInfo)
 #endif
 
 
+#if defined(ENABLE_SDL) 
+
+#if (SDL_MAJOR_VERSION < 2)
+// For now, for linux ==> TODO !
+
+bool GetBatteryInfo(BATTERYINFO* pBatteryInfo) {
+
+    // check incoming pointer
+    if (NULL == pBatteryInfo) {
+        return false;
+    }
+
+    // assume failure at entry
+    pBatteryInfo->BatteryLifePercent = BATTERY_UNKNOWN;
+    pBatteryInfo->acStatus = Battery::UNKNOWN;
+    pBatteryInfo->chargeStatus = Battery::CHARGE_UNKNOWN;
+    
+    return false;
+}
+
+#else
+// define SDL_MAJOR_VERSION >= 2
+
+#include <SDL_power.h>
+
+bool GetBatteryInfo(BATTERYINFO* pBatteryInfo) {
+    int remaining_percent = 0;
+
+    // check incoming pointer
+    if (NULL == pBatteryInfo) {
+        return false;
+    }
+
+    // assume failure at entry
+    pBatteryInfo->BatteryLifePercent = BATTERY_UNKNOWN;
+    pBatteryInfo->acStatus = Battery::UNKNOWN;
+    pBatteryInfo->chargeStatus = Battery::CHARGE_UNKNOWN;
+
+
+    SDL_PowerState power_state = SDL_GetPowerInfo(NULL, &remaining_percent);
+    if (remaining_percent >= 0) {
+        pBatteryInfo->BatteryLifePercent = remaining_percent;
+    }
+
+    switch (power_state) {
+        case SDL_POWERSTATE_CHARGING:
+        case SDL_POWERSTATE_CHARGED:
+            pBatteryInfo->acStatus = Battery::ONLINE;
+            pBatteryInfo->chargeStatus = Battery::CHARGING;
+            break;
+        case SDL_POWERSTATE_ON_BATTERY:
+            pBatteryInfo->acStatus = Battery::OFFLINE;
+            if (remaining_percent >= 0) {
+                if (remaining_percent > 30) {
+                    pBatteryInfo->chargeStatus = Battery::HIGH;
+                } else if (remaining_percent > 30) {
+                    pBatteryInfo->chargeStatus = Battery::LOW;
+                } else {
+                    pBatteryInfo->chargeStatus = Battery::CRITICAL;
+                }
+            } else {
+                pBatteryInfo->chargeStatus = Battery::CHARGE_UNKNOWN;
+            }
+            break;
+        default:
+            pBatteryInfo->chargeStatus = Battery::CHARGE_UNKNOWN;
+            break;
+    }
+    
+    return true;
+}
+#endif
+#endif
+
+
+
+// 2015.02.07 
+// By default the global bool HaveBatteryInfo is always false.
+// We set it true, and use battery infos, only if we find a real battery.
+// Beware. If for any reason the battery no longer gives info we ought to 
+// clear the flag too.
+static bool battInitialized=false;
+
 void UpdateBatteryInfos(void) {
-#ifdef UNDER_CE
+
   BATTERYINFO BatteryInfo; 
-  BatteryInfo.acStatus = 0;
+  BatteryInfo.acStatus = Battery::UNKNOWN;
 
   #ifdef PNA
   if (DeviceIsGM130) {
@@ -62,6 +222,7 @@ void UpdateBatteryInfos(void) {
 	PDABatteryFlag =    GM130PowerFlag();
 
 	PDABatteryTemperature = 0;
+	HaveBatteryInfo=true;
   } else 
   #endif
   if (GetBatteryInfo(&BatteryInfo)) {
@@ -69,6 +230,12 @@ void UpdateBatteryInfos(void) {
     PDABatteryTemperature = BatteryInfo.BatteryTemperature; 
     PDABatteryStatus=BatteryInfo.acStatus;
     PDABatteryFlag=BatteryInfo.chargeStatus;
+
+    #if TESTBENCH
+    if (HaveBatteryInfo==false)
+        StartupStore(_T("... LKBatteryManager: HaveBatteryInfo  ENABLED%s"),NEWLINE);
+    #endif
+    HaveBatteryInfo=true;
 
     // All you need to display extra Battery informations...
     //	TCHAR vtemp[1000];
@@ -78,8 +245,15 @@ void UpdateBatteryInfos(void) {
     //		BatteryInfo.BatterymAHourConsumed,
     //		BatteryInfo.BatteryTemperature, BatteryInfo.BatteryLifeTime, BatteryInfo.BatteryFullLifeTime);
     //	StartupStore( vtemp );
-  } 
-  #endif
+  } else {
+      #if TESTBENCH
+      if (HaveBatteryInfo==true)
+          StartupStore(_T("... LKBatteryManager: HaveBatteryInfo DISABLED%s"),NEWLINE);
+      #endif
+      HaveBatteryInfo=false;
+
+  }
+  battInitialized=true;
 }
 
 
@@ -93,7 +267,12 @@ void LKBatteryManager() {
   static double last_time=0, init_time=0;
   static int last_percent=0, last_status=0;
 
-
+  if (!battInitialized) {
+	#if TESTBENCH
+	StartupStore(_T("... LKBatteryManager waiting for first update%s"),NEWLINE);
+	#endif
+        return;
+  }
   if (invalid) return;
   if (DoInit[MDI_BATTERYMANAGER]) {
 
@@ -103,7 +282,7 @@ void LKBatteryManager() {
 	last_percent=0, last_status=0;
 	numwarn=0;
 
-	if (PDABatteryPercent<1 || PDABatteryPercent>100) {
+	if (!HaveBatteryInfo|| PDABatteryPercent<1 || PDABatteryPercent>100) {
 		StartupStore(_T("... LK BatteryManager V1: internal battery information not available, function disabled%s"), NEWLINE);
 		invalid=true;
 		DoInit[MDI_BATTERYMANAGER]=false; // just to be sure
@@ -115,7 +294,6 @@ void LKBatteryManager() {
 	DoInit[MDI_BATTERYMANAGER]=false;
   }
 
-#ifdef WIN32
 
   // if first run,  and not passed 30 seconds, do nothing
   if (last_percent==0 && (GPS_INFO.Time<(init_time+30))) {
@@ -145,26 +323,26 @@ void LKBatteryManager() {
 	} else
 		last_percent=PDABatteryPercent;
 
-	if (PDABatteryStatus!=AC_LINE_UNKNOWN) {
+	if (PDABatteryStatus!=Battery::UNKNOWN) {
 		last_status=PDABatteryStatus;
 	}
 	// StartupStore(_T("... last_percent first assigned=%d\n"),last_percent);
 	return;
   }
 
-  if (PDABatteryStatus!=AC_LINE_UNKNOWN) {
+  if (PDABatteryStatus!=Battery::UNKNOWN) {
 	if (last_status != PDABatteryStatus) {
-		if (PDABatteryStatus==AC_LINE_OFFLINE) {
+		if (PDABatteryStatus==Battery::OFFLINE) {
 			if (GiveBatteryWarnings())
 	// LKTOKEN  _@M514_ = "POWER SUPPLY OFF" 
 			DoStatusMessage(gettext(TEXT("_@M514_")));
 		} else {
-			if (PDABatteryStatus==AC_LINE_ONLINE) {
+			if (PDABatteryStatus==Battery::ONLINE) {
 				if (GiveBatteryWarnings())
 	// LKTOKEN  _@M515_ = "POWER SUPPLY ON" 
 				DoStatusMessage(gettext(TEXT("_@M515_")));
 			} else {
-				if (PDABatteryStatus==AC_LINE_BACKUP_POWER) {
+				if (PDABatteryStatus==Battery::BACKUP_POWER) {
 					if (GiveBatteryWarnings())
 	// LKTOKEN  _@M119_ = "BACKUP POWER SUPPLY ON" 
 					DoStatusMessage(gettext(TEXT("_@M119_")));
@@ -186,7 +364,7 @@ void LKBatteryManager() {
 	last_percent=PDABatteryPercent;
 	if (!recharging) {
 		recharging=true;
-		if (PDABatteryFlag==BATTERY_FLAG_CHARGING || PDABatteryStatus==AC_LINE_ONLINE) {
+		if (PDABatteryFlag==Battery::CHARGING || PDABatteryStatus==Battery::ONLINE) {
 			if (GiveBatteryWarnings())
 	// LKTOKEN  _@M124_ = "BATTERY IS RECHARGING" 
 			DoStatusMessage(gettext(TEXT("_@M124_")));
@@ -264,7 +442,6 @@ void LKBatteryManager() {
 	last_percent=PDABatteryPercent;
 	return;
   }
-#endif
 }
 
 // returns true if no problems with too many warnings

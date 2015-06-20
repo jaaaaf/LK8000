@@ -18,35 +18,6 @@ long GetUTCOffset(void) {
     return UTCOffset;
 }
 
-void RestartCommPorts() {
-
-    StartupStore(TEXT(". RestartCommPorts begin @%s%s"), WhatTimeIsIt(), NEWLINE);
-
-    LockComm();
-    /* 29/10/2013 : 
-     * if RxThread wait for LockComm, It never can terminate -> Dead Lock
-     *  can appen at many time when reset comport is called ....
-     *    devRequestFlarmVersion called by NMEAParser::PFLAU is first exemple
-     * 
-     * in fact if it appens, devClose() kill RxThread after 20s timeout...
-     *  that solve the deadlock, but thread is not terminated correctly ...
-     * 
-     * Bruno.
-     */
-    devClose(devA());
-    devClose(devB());
-
-    NMEAParser::Reset();
-
-    devInit(TEXT(""));
-
-    UnlockComm();
-#if TESTBENCH
-    StartupStore(TEXT(". RestartCommPorts end @%s%s"), WhatTimeIsIt(), NEWLINE);
-#endif
-
-}
-
 void TriggerGPSUpdate() {
     dataTriggerEvent.set();
 }
@@ -81,16 +52,6 @@ bool Debounce(int dtime) {
         return false;
     }
 }
-
-//
-// Let's get rid of BOOOOls soon!!!
-
-bool BOOL2bool(BOOL a) {
-    if (a == TRUE) return true;
-    return false;
-}
-
-
 
 // Get the infobox type from configuration, selecting position i
 // From 1-8 auxiliaries
@@ -325,11 +286,7 @@ void ToggleDrawTaskFAI(void) {
 #if TESTBENCH
 
 int Test_NIBLSCALE(short x, const int line, const TCHAR *file) {
-    if (x < 0 || x > MAXIBLSCALE) {
-        StartupStore(_T("[ASSERT FAILURE] in %s line %d\n"), _T(__FILE__), __LINE__);
-        MSG_ASSERTION(__LINE__, _T(__FILE__));
-        exit(0);
-    }
+    LKASSERT(x >= 0 && x <= MAXIBLSCALE);
     return LKIBLSCALE[x];
 }
 #endif
@@ -416,17 +373,16 @@ bool IsThermalBarVisible(void) {
 
     switch (ThermalBar) {
 
-        case 0:
+        case 0: // Disabled
             break;
-        case 1:
+        case 1: // in thermal
             return MapWindow::mode.Is(MapWindow::Mode::MODE_CIRCLING);
             break;
-        case 2:
+        case 2: // in thermal and cruise
             return ( MapWindow::mode.Is(MapWindow::Mode::MODE_CIRCLING) ||
                     MapWindow::mode.Is(MapWindow::Mode::MODE_CRUISE));
             break;
-
-        case 3:
+        case 3: // Always
             return true;
             break;
         default:

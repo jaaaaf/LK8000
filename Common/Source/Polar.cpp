@@ -32,7 +32,10 @@ void WeightOffset(double wload) {
   // BALLAST is percentage of full ballast
   // new weight = (wingload * wingarea) - ballast
   calcweight=(wload*GlidePolar::WingArea) - (WEIGHTS[2]*BALLAST);
-  GlidePolar::WeightOffset = calcweight-(WEIGHTS[0]+WEIGHTS[1]);
+  // We set a min limit here, see SetBallast()
+  // Probably only UAV can have such low wing loadings
+  // Or a gnome on an RC glider, maybe.
+  GlidePolar::WeightOffset = std::max(calcweight-WEIGHTS[0]-WEIGHTS[1],(GlidePolar::WingArea - WEIGHTS[0] - WEIGHTS[1]));
 
   GlidePolar::SetBallast(); // BUGFIX 101002
 }
@@ -120,9 +123,27 @@ bool ReadWinPilotPolar(void) {
     StartupStore(_T(". Loading polar file <%s>%s"),szFile,NEWLINE);
 
     FILE * stream = _tfopen(szFile, _T("rt"));
+    if(!stream){
+        // polar file name can be an old name, convert to new name and retry.
+        bool bRetry = false;
+        std::tstring str (szPolarFile);
+        const TCHAR strReplace[] = _T(" ()");
+        for(std::size_t found = str.find_first_of(strReplace); found!=std::string::npos; found=str.find_first_of(strReplace,found+1)) {
+          str[found]=_T('_');
+          bRetry = true; // only retry if file name change.
+        }
+        
+        if(bRetry) {
+            _tcscpy(szFile,str.c_str());
+            ExpandLocalPath(szFile);
+         
+            stream = _tfopen(szFile, _T("rt"));
+        }
+    }
     if (stream){
 
-        while(ReadStringX(stream,READLINE_LENGTH,TempString) && (!foundline)){
+        charset cs = charset::unknown;
+        while(ReadStringX(stream,READLINE_LENGTH,TempString, cs) && (!foundline)){
 
 		if (_tcslen(TempString) <10) continue;
 
@@ -220,7 +241,7 @@ bool ReadWinPilotPolar(void) {
            currentFlapsPos++;
            GlidePolar::FlapsPosCount = currentFlapsPos; 
 	   break;
-	} while(ReadStringX(stream,READLINE_LENGTH,TempString));
+	} while(ReadStringX(stream,READLINE_LENGTH,TempString, cs));
 
       {
 	fclose(stream);

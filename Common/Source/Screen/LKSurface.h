@@ -26,10 +26,13 @@
 #include "LKFont.h"
 #include "BrushReference.h"
 #include "PenReference.h"
+#include "LKAssert.h"
 
 #ifndef USE_GDI
 #include "Screen/Canvas.hpp"
 #endif
+
+class LKBitmapSurface;
 
 class LKSurface : public boost::noncopyable {
 protected:
@@ -63,7 +66,8 @@ public:
     typedef PenReference OldPen;
 
     OldFont SelectObject(const LKFont &obj) {
-        if(_pCanvas) {
+        // we can't select invalid font, otherwise we have segfault when is used.
+        if(_pCanvas && obj.IsDefined()) {
             _pCanvas->Select(obj);
         }
         return OldFont();
@@ -84,7 +88,7 @@ public:
     }
 
     OldFont SelectObject(OldFont o) { 
-        if(_pCanvas && o) {
+        if(_pCanvas && o && o->IsDefined()) {
             _pCanvas->Select(*o);
         }
         return OldFont(); 
@@ -106,7 +110,7 @@ public:
     Canvas* Detach();
     
     operator Canvas&() const {
-        assert(_pCanvas);
+        LKASSERT(_pCanvas);
         return (*_pCanvas);
     }
     
@@ -125,6 +129,7 @@ public:
     void DrawMaskedBitmap(const int x, const int y, const int cx, const int cy, const LKBitmap& Bitmap, const int cxSrc, const int cySrc);
     void DrawBitmapCopy(const int x, const int y, const int cx, const int cy, const LKBitmap& Bitmap, const int cxSrc, const int cySrc);
     void DrawBitmap(const int x, const int y, const int cx, const int cy, const LKBitmap& Bitmap, const int cxSrc, const int cySrc);
+    void DrawBitmapCopy(const int x, const int y, const int cx, const int cy, const LKBitmap& Bitmap);
     void DrawBitmap(const int x, const int y, const int cx, const int cy, const LKBitmap& Bitmap);
 
     void Polygon(const POINT *apt, int cpt, const RECT& ClipRect);
@@ -160,13 +165,15 @@ public:
 	bool StretchCopy(int nXOriginDest, int nYOriginDest, int nWidthDest, int nHeightDest, const LKSurface& Surface, int nXOriginSrc, int nYOriginSrc, int nWidthSrc, int nHeightSrc);
     bool TransparentCopy(int xoriginDest, int yoriginDest, int wDest, int hDest, const LKSurface& Surface, int xoriginSrc, int yoriginSrc);
 
-    bool CopyWithMask(int nXDest, int nYDest, int nWidth, int nHeight, const LKSurface& hdcSrc, int nXSrc, int nYSrc, const LKBitmap& bmpMask, int xMask, int yMask);
+    bool CopyWithMask(int nXDest, int nYDest, int nWidth, int nHeight, const LKSurface& hdcSrc, int nXSrc, int nYSrc, const LKBitmapSurface& bmpMask, int xMask, int yMask);
     
     static bool AlphaBlendSupported();
     bool AlphaBlend(const RECT& dstRect, const LKSurface& Surface, const RECT& srcRect, uint8_t globalOpacity);
-    
+#ifdef USE_MEMORY_CANVAS
+    void AlphaBlendNotWhite(const RECT& dstRect, const LKSurface& Surface, const RECT& srcRect, uint8_t globalOpacity);
+#endif    
     bool GetTextSize(const TCHAR* lpString, int cbString, SIZE* lpSize);
-    void DrawText(int X, int Y, const TCHAR* lpString, UINT cbCount);
+    void DrawText(int X, int Y, const TCHAR* lpString, UINT cbCount, RECT* ClipRect = nullptr);
     int DrawText(const TCHAR* lpchText, int nCount, RECT *lpRect, UINT uFormat);
 
     int GetTextWidth(const TCHAR *text);

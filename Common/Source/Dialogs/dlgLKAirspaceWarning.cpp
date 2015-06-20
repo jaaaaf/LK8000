@@ -15,6 +15,8 @@
 #include "WindowControls.h"
 #include "dlgTools.h"
 #include "RGB.h"
+#include "Event/Event.h"
+#include "Sound/Sound.h"
 
 CAirspaceBase airspace_copy;
 AirspaceWarningMessage msg;
@@ -71,10 +73,10 @@ static bool OnTimer(){
 
 static bool OnKeyDown(Window* pWnd, unsigned KeyCode) {
     switch (KeyCode) {
-        case VK_RETURN:
+        case KEY_RETURN:
             OnAckForTimeClicked(nullptr);
             return true;
-        case VK_ESCAPE:
+        case KEY_ESCAPE:
             OnCloseClicked(nullptr);
             return true;
     }
@@ -281,7 +283,7 @@ void dlgLKAirspaceFill()
       } else {
         // no distance info calculated
         // LKTOKEN _@M1259_ "Too far, not calculated"
-        _stprintf(stmp2,gettext(TEXT("_@M1259_")));
+        _tcscpy(stmp2,gettext(TEXT("_@M1259_")));
       }
       wp->SetText(stmp2);
       wp->RefreshDisplay();
@@ -302,7 +304,7 @@ void dlgLKAirspaceFill()
       } else {
         // no distance info calculated
         // LKTOKEN _@M1259_ "Too far, not calculated"
-        _stprintf(stmp2,gettext(TEXT("_@M1259_")));
+        _tcscpy(stmp2,gettext(TEXT("_@M1259_")));
       }
       wp->SetText(stmp2);
       wp->RefreshDisplay();

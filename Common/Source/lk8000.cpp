@@ -65,6 +65,16 @@
 
 #include "Screen/Init.hpp"
 #include "Message.h"
+#include "Sound/Sound.h"
+
+#include "Kobo/System.hpp"
+#include "Kobo/Kernel.hpp"
+#include "Hardware/CPU.hpp"
+#include "LKInterface/CScreenOrientation.h"
+
+#ifdef __linux__
+#include <sys/utsname.h>
+#endif
 
 #ifdef INT_OVERFLOW
 	#include <signal.h>
@@ -73,6 +83,8 @@
 using std::min;
 using std::max;
 
+#define MSGDELAY  200  // delay after printing each progress dialog info line
+#define ERRDELAY  3000  // delay after printing each progress dialog ERROR line
 
 
 // Developers dedicates!
@@ -126,15 +138,28 @@ int WINAPI WinMain(     HINSTANCE hInstance,
     (void)hPrevInstance;
     
     _hInstance = hInstance; // this need to be first, always !
+    #if (WINDOWSPC >0)
     const TCHAR* szCmdLine = GetCommandLine();
+    #endif
     
 #else
-int main() {
-    const char * szCmdLine = "";
+int main(int argc, char *argv[]) {
     
-  SCREENWIDTH=800;
-  SCREENHEIGHT=480;    
-
+#ifdef KOBO
+    if(lk::filesystem::exist("/mnt/onboard/LK8000/uImage")) {
+        KoboInstallKernel("/mnt/onboard/LK8000/uImage");
+        lk::filesystem::deleteFile("/mnt/onboard/LK8000/uImage");
+        KoboReboot();
+    }
+#endif
+    
+#ifdef HAVE_CPU_FREQUENCY
+    // temporary for KOBO device. 
+    // solve some lag problem.
+    // remove when code are optimized.
+    const ScopeLockCPU cpu;
+#endif       
+    
 #endif
 
 #ifdef INT_OVERFLOW
@@ -156,13 +181,6 @@ int main() {
   }
   #endif
 
-  ScreenGlobalInit InitScreen;
-
-        
-  bool realexitforced=false;
-
-  LKSound(_T("LK_CONNECT.WAV"));
-
   #if TRACETHREAD
   _THREADID_WINMAIN=GetCurrentThreadId();
   StartupStore(_T("##############  WINMAIN threadid=%d\n"),GetCurrentThreadId());
@@ -170,13 +188,26 @@ int main() {
   _stprintf(LK8000_Version,_T("%s v%s.%s "), _T(LKFORK), _T(LKVERSION),_T(LKRELEASE));
   _tcscat(LK8000_Version, TEXT(__DATE__));
   StartupStore(_T("------------------------------------------------------------%s"),NEWLINE);
+  #ifdef __linux__
+  StartupStore(TEXT(". Starting %s %s%s"), LK8000_Version,_T("LINUX"),NEWLINE);
+  
+  struct utsname sysinfo = {};
+  if(uname(&sysinfo) == 0) {
+    StartupStore(". System Name:    %s %s" NEWLINE, sysinfo.sysname, sysinfo.nodename);
+    StartupStore(". Kernel Version: %s" NEWLINE, sysinfo.release);
+    StartupStore(". Kernel Build:   %s" NEWLINE, sysinfo.version);
+    StartupStore(". Machine Arch:   %s" NEWLINE, sysinfo.machine);
+  }
+  
+  #else
   #ifdef PNA
-  StartupStore(TEXT(". Starting %s %s%s"), LK8000_Version,_T("PNA"),NEWLINE);
+  StartupStore(TEXT(". [%09u] Starting %s %s%s"),(unsigned int)GetTickCount(),LK8000_Version,_T("PNA"),NEWLINE);
   #else
   #if (WINDOWSPC>0)
-  StartupStore(TEXT(". Starting %s %s%s"), LK8000_Version,_T("PC"),NEWLINE);
+  StartupStore(TEXT(". [%09u] Starting %s %s%s"),(unsigned int)GetTickCount(),LK8000_Version,_T("PC"),NEWLINE);
   #else
-  StartupStore(TEXT(". Starting %s %s%s"), LK8000_Version,_T("PDA"),NEWLINE);
+  StartupStore(TEXT(". [%09u] Starting %s %s%s"),(unsigned int)GetTickCount(),LK8000_Version,_T("PDA"),NEWLINE);
+  #endif
   #endif
   #endif
 
@@ -184,17 +215,50 @@ int main() {
     #ifdef _MSC_VER
       StartupStore(TEXT(". Built with MSVC ver : %d %s"), _MSC_VER, NEWLINE);
     #endif
-    #ifdef __MINGW32__
-      StartupStore(TEXT(". Built with mingw32 %d.%d (GCC %d.%d.%d) %s"), 
-              __MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION, 
-              __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, 
-              NEWLINE);
+    #ifdef __GNUC__
+        #ifdef __MINGW32__
+          StartupStore(TEXT(". Built with mingw32 %d.%d (GCC %d.%d.%d) %s"), 
+                  __MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION, 
+                  __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, 
+                  NEWLINE);
+        #else
+          StartupStore(TEXT(". Built with GCC %d.%d.%d %s"), 
+                  __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, 
+                  NEWLINE);
+
+        #endif
     #endif
   StartupStore(TEXT(". TESTBENCH option enabled%s"),NEWLINE);
   #endif
+
+  ScreenGlobalInit InitScreen;
+  SoundGlobalInit InitSound;
+
+  CScreenOrientation SaveScreen(LKGetLocalPath());
+
+  
+  // This is needed otherwise LKSound will be silent until we init Globals.
+  EnableSoundModes=true;
+ 
+  bool realexitforced=false;
+
+  LKSound(_T("LK_CONNECT.WAV"));
+
   Globals_Init();
 
   StartupLogFreeRamAndStorage();
+
+  lscpu_init();
+  if (HaveSystemInfo) {
+      StartupStore(_T(". Host: %s %s%s"),
+          SystemInfo_Architecture()==NULL?_T("Unknown"):SystemInfo_Architecture(),
+          SystemInfo_Vendor()==NULL?_T(""):SystemInfo_Vendor(),
+          NEWLINE);
+      StartupStore(_T(". CPUs: #%d running at %d Mhz, %d bogoMips%s"),SystemInfo_Cpus(),
+          SystemInfo_Mhz(), SystemInfo_Bogomips(), NEWLINE);
+  } else {
+      StartupStore(_T(". Host and Cpu informations not available%s"),NEWLINE);
+  }
 
   // PRELOAD ANYTHING HERE
   LKRunStartEnd(true);
@@ -223,8 +287,8 @@ int main() {
   #if TESTBENCH
   TCHAR szPath[MAX_PATH] = {0};
   lk::filesystem::getExePath(szPath, MAX_PATH);
-  StartupStore(_T(". Program execution path is <%s>\n"),szPath);
-  StartupStore(_T(". Program data directory is <%s>\n"),LKGetLocalPath());
+  StartupStore(_T(". Program execution path is <%s>") NEWLINE,szPath);
+  StartupStore(_T(". Program data directory is <%s>") NEWLINE,LKGetLocalPath());
   #endif
 
   #if ( WINDOWSPC==0 )
@@ -255,8 +319,14 @@ int main() {
   _stprintf(defaultDeviceFile,_T("%s%s%s%s"),LKGetLocalPath(), _T(LKD_CONF), _T(DIRSEP), _T(LKDEVICE));
   _tcscpy(startDeviceFile, defaultDeviceFile);
 
-
+  #ifdef __linux__
+  extern void LKCmdLineArguments(int argc, char *argv[]);
+  LKCmdLineArguments(argc,argv);
+  #else
+  #if (WINDOWSPC >0)
   LK8000GetOpts(szCmdLine);
+  #endif
+  #endif
   InitSineTable();
 
   // Perform application initialization: also ScreenGeometry and LKIBLSCALE, and Objects
@@ -274,9 +344,7 @@ int main() {
   memset( &(GPS_INFO), 0, sizeof(GPS_INFO));
   memset( &(CALCULATED_INFO), 0,sizeof(CALCULATED_INFO));
   memset( &SnailTrail[0],0,TRAILSIZE*sizeof(SNAIL_POINT));
-  #if LONGSNAIL
   memset( &LongSnailTrail[0],0,(LONGTRAILSIZE+1)*sizeof(LONG_SNAIL_POINT));
-  #endif
 
   InitCalculations(&GPS_INFO,&CALCULATED_INFO);
 
@@ -305,21 +373,10 @@ int main() {
   GPS_INFO.SwitchState.VarioCircling = false;
   #endif
 
-#ifdef WIN32
-  SYSTEMTIME pda_time;
-  GetSystemTime(&pda_time);
-  GPS_INFO.Time  = pda_time.wHour*3600+pda_time.wMinute*60+pda_time.wSecond;
-  GPS_INFO.Year  = pda_time.wYear;
-  GPS_INFO.Month = pda_time.wMonth;
-  GPS_INFO.Day	 = pda_time.wDay;
-  GPS_INFO.Hour  = pda_time.wHour;
-  GPS_INFO.Minute = pda_time.wMinute;
-  GPS_INFO.Second = pda_time.wSecond;
-#else
   time_t  linux_time;
   linux_time = time(0);
-  tm *pda_time;
-  pda_time = localtime( &linux_time);
+  struct tm *pda_time;
+  pda_time = gmtime(&linux_time);
   GPS_INFO.Time  = pda_time->tm_hour*3600+pda_time->tm_min*60+pda_time->tm_sec;
   GPS_INFO.Year  = pda_time->tm_year + 1900;
   GPS_INFO.Month = pda_time->tm_mon + 1;
@@ -327,14 +384,12 @@ int main() {
   GPS_INFO.Hour  = pda_time->tm_hour;
   GPS_INFO.Minute = pda_time->tm_min;
   GPS_INFO.Second = pda_time->tm_sec;  
-#endif
 
   CalculateNewPolarCoef();
   #if TESTBENCH
   StartupStore(TEXT(". GlidePolar::SetBallast%s"),NEWLINE);
   #endif
   GlidePolar::SetBallast();
-
 
 #ifdef PNA // VENTA-ADDON
     TCHAR sTmp[250];
@@ -347,17 +402,17 @@ int main() {
   if ( !datadir ) {
 	// LKTOKEN _@M1208_ "ERROR NO DIRECTORY:"
     CreateProgressDialog(gettext(TEXT("_@M1208_")));
-    Poco::Thread::sleep(3000);
+    Poco::Thread::sleep(ERRDELAY);
   }
 #endif
   _stprintf(sTmpB, TEXT("Conf=%s"),sTmpA);
   CreateProgressDialog(sTmpB); 
 #if ( WINDOWSPC==0 )
   if ( !datadir ) {
-    Poco::Thread::sleep(3000);
+    Poco::Thread::sleep(ERRDELAY);
     // LKTOKEN _@M1209_ "CHECK INSTALLATION!"
 	CreateProgressDialog(gettext(TEXT("_@M1209_")));
-    Poco::Thread::sleep(3000);
+    Poco::Thread::sleep(ERRDELAY);
   }
 #endif
 #endif // non PNA
@@ -366,12 +421,12 @@ int main() {
     if (AircraftCategory == (AircraftCategory_t) umParaglider) {
         // LKTOKEN _@M1210_ "PARAGLIDING MODE"
         CreateProgressDialog(gettext(TEXT("_@M1210_")));
-        Poco::Thread::sleep(1000);
+        Poco::Thread::sleep(MSGDELAY);
     }
     if (SIMMODE) {
         // LKTOKEN _@M1211_ "SIMULATION"
         CreateProgressDialog(gettext(TEXT("_@M1211_")));
-        Poco::Thread::sleep(1000);
+        Poco::Thread::sleep(MSGDELAY);
     }
 
 #ifdef PNA
@@ -381,7 +436,8 @@ int main() {
   else
 	// LKTOKEN _@M1213_ "NO BACKLIGHT CONTROL"
 	CreateProgressDialog(gettext(TEXT("_@M1213_")));
-
+#endif
+  
   // this should work ok for all pdas as well
   if ( SetSoundVolume() == true ) 
 	// LKTOKEN _@M1214_ "AUTOMATIC SOUND LEVEL CONTROL"
@@ -389,7 +445,7 @@ int main() {
   else
 	// LKTOKENS _@M1215_ "NO SOUND LEVEL CONTROL"
 	CreateProgressDialog(gettext(TEXT("_@M1215_")));
-#endif
+
 
   RasterTerrain::OpenTerrain();
 
@@ -403,9 +459,6 @@ int main() {
   SetHome(false);
   LKReadLanguageFile(szLanguageFile);
   LKLanguageReady=true;
-
-  RasterTerrain::ServiceFullReload(GPS_INFO.Latitude, 
-                                   GPS_INFO.Longitude);
 
   CAirspaceManager::Instance().ReadAirspaces();
   CAirspaceManager::Instance().SortAirspaces();
@@ -580,18 +633,23 @@ _Shutdown:
   #endif
   #endif
 
+#if (defined(KOBO) && defined(NDEBUG))
+#warning "Temporary : remove when we have KoboMenu"  
+  KoboExecNickel();
+#endif  
+  
   if (realexitforced) return 222;
   else return 111;
 }
 
-extern void DeInitialiseFonts(void);
+extern void DeInitLKFonts(void);
 
 void CleanupForShutdown(void) {
 
   MainWindow.Destroy();
   Message::Destroy();
 
-  DeInitialiseFonts();  
+  DeInitLKFonts();  
   LKObjects_Delete();
   LKUnloadProfileBitmaps();
   LKUnloadFixedBitmaps();

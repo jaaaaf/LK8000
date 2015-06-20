@@ -99,7 +99,7 @@ bool DoAirspaces(NMEA_INFO *Basic, DERIVED_INFO *Calculated)
    bool ret = false;
    
    if (DoInit[MDI_DOAIRSPACES]) {
-	memset(LKAirspaces, 0, sizeof(LKAirspaces));
+    CCriticalSection::CGuard guard(CAirspaceManager::Instance().MutexRef());
 	LKNumAirspaces=0;
 	memset(LKSortedAirspaces, -1, sizeof(LKSortedAirspaces));
     for (int i=0; i<MAXNEARAIRSPACES; i++) {
@@ -112,16 +112,10 @@ bool DoAirspaces(NMEA_INFO *Basic, DERIVED_INFO *Calculated)
 
    // DoAirspaces is called from MapWindow, in real time. We have enough CPU power there now
    // Consider replay mode...
-   // Multicalc used below, we don't need this
-   //if (  LastDoAirspaces > Basic->Time ) LastDoAirspaces=Basic->Time;
-   //if ( Basic->Time < (LastDoAirspaces+PAGINGTIMEOUT) ) { 
-   //  return false;
-   //}
 
    // We need a valid GPS fix in FLY mode
    if (Basic->NAVWarning && !SIMMODE) return true;
 
-   LastDoAirspaces=Basic->Time;
    
    #ifdef DEBUG_LKT
    StartupStore(_T("... DoAirspaces step%d started\n"),step);

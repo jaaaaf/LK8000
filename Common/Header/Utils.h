@@ -20,7 +20,6 @@ extern bool LoggerShortName;
 
 #if defined(PNA) && defined(UNDER_CE)
 bool SetBacklight();
-bool SetSoundVolume();
 #endif
 
 #ifdef PNA
@@ -57,8 +56,23 @@ bool SetModelType();
 bool SetModelName(DWORD Temp);
 void ReadUUID(void);
 void FormatWarningString(int Type, TCHAR *Name , AIRSPACE_ALT Base, AIRSPACE_ALT Top, TCHAR *szMessageBuffer, TCHAR *TileBuffer );
-BOOL ReadString(ZZIP_FILE* zFile, int Max, TCHAR *String);
-BOOL ReadStringX(FILE *fp, int Max, TCHAR *String);
+
+
+/**
+ * charset is used for detect encoding of file, use variable with charset::unknown for first ReadString call.
+ * next ReadString call need use charset returned by fist call.
+ *  - with that, file are loaded as utf8 file until only valid utf8 char is read and
+ *    as latin1 (iso8859) if invalid utf8 char is read.
+ */
+enum charset {
+    unknown,
+    utf8,
+    latin1
+};
+
+BOOL ReadString(ZZIP_FILE* zFile, int Max, TCHAR *String, charset& cs);
+BOOL ReadStringX(FILE *fp, int Max, TCHAR *String, charset& cs);
+
 bool ReadULine(ZZIP_FILE* fp, TCHAR *unicode, int maxChars);
 
 
@@ -115,13 +129,16 @@ typedef struct {
 TCHAR* StringMallocParse(TCHAR* old_string);
 
 void LocalPath(TCHAR* buf, const TCHAR* file = TEXT(""));
+void SystemPath(TCHAR* buf, const TCHAR* file = TEXT(""));
+void GetPath(TCHAR* buffer, const TCHAR* file, const TCHAR* lkPath);
 void LocalPathS(TCHAR* buf, const TCHAR* file = TEXT(""));
 const TCHAR *LKGetLocalPath(void);
+const TCHAR *LKGetSystemPath(void);
+const TCHAR *LKGetPath(TCHAR *localpath, const TCHAR *fileToSearch);
 
 void ExpandLocalPath(TCHAR* filein);
 void ContractLocalPath(TCHAR* filein);
 
-void propGetFontSettings(const char* Name, LOGFONT* lplf);
 void propGetFontSettingsFromString(const TCHAR *Buffer, LOGFONT* lplf);
 #if 0
 int propGetScaleList(double *List, size_t Size);
@@ -173,17 +190,12 @@ int HexStrToInt(TCHAR *Source);
 void StrToTime(LPCTSTR szString, int *Hour, int *Min, int *Sec = NULL);
 
 
-unsigned long CheckFreeRam(void);
-// check maximum allocatable heap block
-unsigned long CheckMaxHeapBlock(void);
-
 const TCHAR *TaskFileName(unsigned bufferLen, TCHAR buffer[]);
 bool UseContestEngine(void);
 int  GetWaypointFileFormatType(const TCHAR* wextension);
 
 // LK Utils
 void LKBatteryManager();
-void LKSound(const TCHAR *lpName);
 void ChangeWindCalcSpeed(const int newspeed);
 bool LKRun(const TCHAR *prog, const int runmode, const DWORD dwaitime);
 void GotoWaypoint(const int wpnum);
@@ -196,17 +208,12 @@ bool CheckAlarms(unsigned short al);
 void MasterTimeReset(void);
 bool DoOptimizeRoute(void);
 TCHAR * WhatTimeIsIt(void);
-void OutOfMemory(const char *where, int line);
+void OutOfMemory(const TCHAR *where, int line);
 
-void MemCheckPoint();
-void MemLeakCheck();
-void MyCompactHeaps();
-unsigned long FindFreeSpace(const TCHAR *path);
-bool MatchesExtension(const TCHAR *filename, const TCHAR* extension);
-BOOL PlayResource (const TCHAR* lpName);
 void CreateDirectoryIfAbsent(const TCHAR *filename);
 
-bool RotateScreen(short angle);
+RECT WindowResize(unsigned int x, unsigned int y);
+
 
 void UpdateConfBB(void);
 void UpdateConfIP(void);
@@ -233,8 +240,8 @@ extern void ClubForbiddenMsg(void);
 
 #if USELKASSERT
 void LK_tcsncpy_internal(TCHAR *dest, const TCHAR *src, const unsigned int numofchars,
-			const unsigned int sizedest, const int line = 0, const char *filename = NULL); 
-#define LK_tcsncpy(dest, src, numofchars) {;LK_tcsncpy_internal(dest, src, numofchars, sizeof(dest), __LINE__, __FILE__);}
+			const unsigned int sizedest, const int line = 0, const TCHAR *filename = NULL); 
+#define LK_tcsncpy(dest, src, numofchars) {;LK_tcsncpy_internal(dest, src, numofchars, sizeof(dest), __LINE__, _T(__FILE__));}
 #else
 void LK_tcsncpy_internal(TCHAR *dest, const TCHAR *src, const unsigned int numofchars);
 #define LK_tcsncpy(dest, src, numofchars) LK_tcsncpy_internal(dest, src, numofchars)

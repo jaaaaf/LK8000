@@ -19,7 +19,7 @@ int MapWindow::SharedTopView(LKSurface& Surface, DiagrammStruct* psDia , double 
 {
   int iOldDisplayOrientation =  DisplayOrientation;
   DiagrammStruct m_Dia =	*psDia;
-  RECT rct = m_Dia.rc;
+  const RECT& rct = m_Dia.rc;
 
   unsigned short getsideviewpage=GetSideviewPage();
   LKASSERT(getsideviewpage<NUMBER_OF_SHARED_MULTIMAPS);
@@ -49,15 +49,11 @@ int MapWindow::SharedTopView(LKSurface& Surface, DiagrammStruct* psDia , double 
 
   switch(ScreenSize) {
 
-	case ss896x672:	fFact=0.938; break;
-
 	case ss800x480:	fFact=0.750; break;
-
 	case ss640x480:	fFact=0.938; break;
 	case ss480x272:	fFact=0.708; break;
 	case ss400x240:	fFact=0.750; break;
 	case ss320x240:	fFact=0.938; break;
-
 	case ss480x800:	fFact=1.250; break;
 	case ss480x640:	fFact=1.250; break;
 	case ss272x480:	fFact=1.250; break;
@@ -97,8 +93,11 @@ int MapWindow::SharedTopView(LKSurface& Surface, DiagrammStruct* psDia , double 
   int iOldLocator = EnableThermalLocator;
   EnableThermalLocator =0;
 
+/*******/
+#warning "wrong place for do that, always bad idea to change layout inside drawing fonctions !"
   MapWindow::ChangeDrawRect(rct);       // set new area for terrain and topology
-
+/*******/
+  
   zoom.ModifyMapScale();
   zoom.RequestedScale((m_Dia.fXMax -m_Dia.fXMin)  * fFact *  (DISTANCEMODIFY)/10.0f);
 
@@ -158,41 +157,29 @@ _nomoredeclutter:
   if (IsMultimapTopology()) {
 	// Do not print topology labels, to be used with another config later!
 	// SaturateLabelDeclutter();
-	RECT rc_red = rct;
-	rc_red.bottom -= 3;
-	DrawTopology(Surface, rc_red);
+	DrawTopology(Surface, rct);
   } else {
 	// No topology is desired, but terrain requires water areas nevertheless
 	if (terrainpainted) {
-		RECT rc_red = rct;
-		rc_red.bottom -= 3;
-		DrawTopology(Surface, rc_red,true); // water only!
+		DrawTopology(Surface, rct,true); // water only!
 	}
   }
 
 
   if (IsMultimapAirspace()) {
-	if ( (GetAirSpaceFillType() == asp_fill_ablend_full) || (GetAirSpaceFillType() == asp_fill_ablend_borders) ) {
-		DrawTptAirSpace(Surface, rct);
-	} else {
-		if ( GetAirSpaceFillType() == asp_fill_border_only)
-			DrawAirSpaceBorders(Surface, rct); // full screen, to hide clipping effect on low border
-		else
-			DrawAirSpace(Surface, rct);   // full screen, to hide clipping effect on low border
-	}
-	// DrawAirspaceLabels( hdc,   rct, Orig_Aircraft);
+	DrawAirSpace(Surface, rct);   // full screen, to hide clipping effect on low border
   }
 
   if (Flags_DrawTask && MapSpaceMode!=MSM_MAPASP && ValidTaskPoint(ActiveWayPoint) && ValidTaskPoint(1)) {
-    DrawTaskAAT(Surface, DrawRect);
-    DrawTask(Surface, DrawRect, Current_Multimap_TopOrig);
+    DrawTaskAAT(Surface, rct);
+    DrawTask(Surface, rct, Current_Multimap_TopOrig);
   }
 
   if (IsMultimapWaypoints()) {
-	DrawWaypointsNew(Surface,DrawRect);
+	DrawWaypointsNew(Surface,rct);
   }
   if (Flags_DrawFAI)
-	DrawFAIOptimizer(Surface, DrawRect, Current_Multimap_TopOrig);
+	DrawFAIOptimizer(Surface, rct, Current_Multimap_TopOrig);
 
   DeclutterMode=olddecluttermode; // set it back correctly
 
@@ -201,7 +188,7 @@ _nomoredeclutter:
     #ifdef GTL2
     if (((FinalGlideTerrain == 2) || (FinalGlideTerrain == 4)) &&
 	DerivedDrawInfo.TerrainValid)
-	DrawTerrainAbove(hdc, DrawRect);
+	DrawTerrainAbove(hdc, rct);
     #endif
   */
 
@@ -211,18 +198,18 @@ _nomoredeclutter:
   if (MapSpaceMode==MSM_MAPTRK) {
 	if(IsMultimapTerrain() || IsMultimapTopology() ) {
 		if (FinalGlideTerrain && DerivedDrawInfo.TerrainValid)
-			DrawGlideThroughTerrain(Surface, DrawRect);
+			DrawGlideThroughTerrain(Surface, rct);
 	}
 	if (extGPSCONNECT)
-		DrawBearing(Surface, DrawRect);
+		DrawBearing(Surface, rct);
 	// Wind arrow
 	if (IsMultimapOverlaysGauges())
-		DrawWindAtAircraft2(Surface, Current_Multimap_TopOrig, DrawRect);
+		DrawWindAtAircraft2(Surface, Current_Multimap_TopOrig, rct);
   }
 
   if (MapSpaceMode==MSM_MAPWPT) {
 	if (extGPSCONNECT)
-		DrawBearing(Surface, DrawRect);
+		DrawBearing(Surface, rct);
   }
 
   switch(GetMMNorthUp(getsideviewpage)) {
@@ -257,7 +244,7 @@ _nomoredeclutter:
 	} else {
 	    if (TrackBar) {
     	 	    DrawHeadUpLine(Surface, Orig, rct, psDia->fXMin ,psDia->fXMax);
-    	 	    if (ISGAAIRCRAFT) DrawFuturePos(Surface, Orig, DrawRect, true);
+    	 	    if (ISGAAIRCRAFT) DrawFuturePos(Surface, Orig, rct, true);
     	 	}
 	}
      break;
@@ -266,7 +253,7 @@ _nomoredeclutter:
      default:
 	if (TrackBar) {
 		DrawHeadUpLine(Surface, Orig, rct, psDia->fXMin ,psDia->fXMax);
-		if (ISGAAIRCRAFT) DrawFuturePos(Surface, Orig, DrawRect, true);
+		if (ISGAAIRCRAFT) DrawFuturePos(Surface, Orig, rct, true);
 	}
 	break;
   }
@@ -290,26 +277,16 @@ _nomoredeclutter:
 
 void MapWindow::DrawHeadUpLine(LKSurface& Surface, const POINT& Orig, const RECT& rc, double fMin, double fMax  ) {
 
-  LKColor rgbCol = RGB_BLACK;
-  POINT p1, p2;
-  double tmp = fMax*zoom.ResScaleOverDistanceModify();
+  const double tmp = fMax*zoom.ResScaleOverDistanceModify();
+  const double trackbearing =  DisplayAircraftAngle+  (DerivedDrawInfo.Heading-DrawInfo.TrackBearing);
   
-  double trackbearing =  DisplayAircraftAngle+  (DerivedDrawInfo.Heading-DrawInfo.TrackBearing);
-  p2.y= Orig.y - (int)(tmp*fastcosine(trackbearing));
-  p2.x= Orig.x + (int)(tmp*fastsine(trackbearing));
+  const POINT p2 = { Orig.x + (int)(tmp*fastsine(trackbearing)), Orig.y - (int)(tmp*fastcosine(trackbearing)) };
 
-  p1.y= Orig.y;
-  p1.x= Orig.x;
+  const LKColor rgbCol = BlackScreen?RGB_INVDRAW:RGB_BLACK;
 
-  if (BlackScreen)
-  rgbCol = RGB_INVDRAW;
-
-  ForcedClipping=true;
   // Reduce the rectangle for a better effect
-  RECT DrawRect = (RECT){rc.left+NIBLSCALE(5), rc.top+NIBLSCALE(5), rc.right-NIBLSCALE(5), rc.bottom-NIBLSCALE(5) };
-  Surface.DrawLine(PEN_SOLID, NIBLSCALE(1), p1, p2, rgbCol, DrawRect);
-  ForcedClipping=false;
-
+  const RECT ClipRect = {rc.left+NIBLSCALE(5), rc.top+NIBLSCALE(5), rc.right-NIBLSCALE(5), rc.bottom-NIBLSCALE(5) };
+  Surface.DrawLine(PEN_SOLID, NIBLSCALE(1), Orig, p2, rgbCol, ClipRect);
 }
 
 

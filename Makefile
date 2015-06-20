@@ -40,6 +40,7 @@ ifeq ($(GPROF),y)
     REMOVE_NS :=
 endif
 
+CONFIG_WIN32    :=n # y for all windows target
 CONFIG_PPC2002	:=n
 CONFIG_PPC2003	:=n
 CONFIG_PC	:=n
@@ -53,24 +54,30 @@ GTARGET		:=$(TARGET)
 
 ifeq ($(TARGET),PPC2002)
   CONFIG_PPC2002	:=y
+  CONFIG_WIN32 := y
 else
   ifeq ($(TARGET),PPC2003)
     CONFIG_PPC2003	:=y
+    CONFIG_WIN32 := y
   else
     ifeq ($(TARGET),PPC2003X)
       CONFIG_PPC2003	:=y
       XSCALE :=y
       GTARGET := PPC2003
+      CONFIG_WIN32 := y
     else
       ifeq ($(TARGET),PC)
         CONFIG_PC	:=y
+	CONFIG_WIN32 := y
       else
         ifeq ($(TARGET),WINE)
           CONFIG_WINE :=y
+	  CONFIG_WIN32 := y
         else
 	  ifeq ($(TARGET),PNA)
 	    CONFIG_PNA := y
 	    CONFIG_PPC2003 := y
+	    CONFIG_WIN32 := y
 	  else
 	    ifeq ($(TARGET),LINUX)
 	      CONFIG_LINUX := y
@@ -79,8 +86,17 @@ else
 		else
 		    ifeq ($(TARGET),PCX64)
 			CONFIG_PC:=y
+			CONFIG_WIN32 := y
+		    else
+		       ifeq ($(TARGET),KOBO)
+			    KOBO ?= /opt/kobo/arm-unknown-linux-gnueabi
+			    TARGET_IS_KOBO := y
+			    CONFIG_LINUX := y
+			    CONFIG_ANDROID := n
+			    MINIMAL       :=n
+			endif
 		    endif
-        endif
+		endif
 	  endif
 	endif
       endif
@@ -108,7 +124,12 @@ CPU		:=i586
 MCPU		:= -mcpu=$(CPU)
 else
 ifeq ($(CONFIG_LINUX),y)
+ifeq ($(TARGET_IS_KOBO),y)
+TCPATH		:= arm-unknown-linux-gnueabi-
+MCPU		:= -march=armv7-a -mfpu=neon -mfloat-abi=hard -ftree-vectorize
+else
 TCPATH		:= 
+endif
 else
 TCPATH		:=arm-mingw32ce-
 endif
@@ -116,9 +137,6 @@ endif
 ifeq ($(XSCALE),y)
 CPU		:=xscale
 MCPU		:= -mcpu=$(CPU)
-else
-CPU		:=
-MCPU		:=
 endif
 
 ifeq ($(TARGET),PNA)
@@ -167,16 +185,6 @@ TARGET		:=WINE
 CONFIG_PC	:=y
 endif
 
-######## output files
-
-ifeq ($(DEBUG),y)
-OUTPUTS 	:= LK8000-$(TARGET)_debug.exe
-OUTPUTS_NS	:= LK8000-$(TARGET)_debug-ns.exe	
-else
-OUTPUTS 	:= LK8000-$(TARGET).exe
-OUTPUTS_NS	:= LK8000-$(TARGET)-ns.exe	
-endif
-
 ######## tools
 
 EXE		:=$(findstring .exe,$(MAKE))
@@ -200,23 +208,79 @@ EBROWSE         :=ebrowse
 
 GCCVERSION = $(shell $(CXX) --version | grep ^$(TCPATH) | sed 's/^.* //g')
 
+$(info GCC VERSION : $(GCCVERSION))
+
+######## output files
+ifeq ($(CONFIG_LINUX),y)
+    SUFFIX :=
+else
+    SUFFIX := .exe
+endif
+
+ifeq ($(DEBUG),y)
+OUTPUTS 	:= LK8000-$(TARGET)_debug$(SUFFIX)
+OUTPUTS_NS	:= LK8000-$(TARGET)_debug-ns$(SUFFIX)	
+else
+OUTPUTS 	:= LK8000-$(TARGET)$(SUFFIX)
+OUTPUTS_NS	:= LK8000-$(TARGET)-ns$(SUFFIX)
+endif
+
+
 ######## windows definitions
 
 ifeq ($(CONFIG_LINUX),y)
-USE_SDL := y
 CE_DEFS	:= -D__linux__
+
+ifeq ($(TARGET_IS_KOBO),y)
+USE_SDL := n
+GREYSCALE := y
+CE_DEFS += -DKOBO
+USE_SOUND_EXTDEV := y
+
+else
+USE_SDL := y
+GREYSCALE := n
+USE_SOUND_EXTDEV := n
+endif
+	
 CE_DEFS += -DUSE_MEMORY_CANVAS	
 
 ifeq ($(USE_SDL),y)
-$(eval $(call pkg-config-library,SDL,sdl))
-CE_DEFS += $(patsubst -I%,-isystem %,$(SDL_CPPFLAGS))
 CE_DEFS += -DENABLE_SDL
+
+USE_SDL2 = $(shell $(PKG_CONFIG) --exists sdl2 && echo y)
+ifeq ($(USE_SDL2),y)
+   USE_SDL2 = $(shell $(PKG_CONFIG) --exists SDL2_mixer && echo y)
+endif
+ifeq ($(USE_SDL2),y)
+    $(info build with SDL 2 Library)
+
+    $(eval $(call pkg-config-library,SDL,sdl2))
+    $(eval $(call pkg-config-library,SDL_MIXER,SDL2_mixer))
+else 
+    $(info build with SDL 1.2 Library)
+
+    $(eval $(call pkg-config-library,SDL,sdl))
+    $(eval $(call pkg-config-library,SDL_MIXER,SDL_mixer))
+endif
+
+CE_DEFS += $(patsubst -I%,-isystem %,$(SDL_CPPFLAGS))
+CE_DEFS += $(patsubst -I%,-isystem %,$(SDL_MIXER_CPPFLAGS))
 
 else
 CE_DEFS += -DUSE_FB
 CE_DEFS += -DUSE_CONSOLE
 endif
 
+ifeq ($(GREYSCALE),y)
+CE_DEFS += -DGREYSCALE -DDITHER 
+endif
+
+$(eval $(call pkg-config-library,ZZIP,zziplib))
+CE_DEFS += $(patsubst -I%,-isystem %,$(ZZIP_CPPFLAGS))
+
+$(eval $(call pkg-config-library,ZLIB,zlib))
+CE_DEFS += $(patsubst -I%,-isystem %,$(ZLIB_CPPFLAGS))
 
 $(eval $(call pkg-config-library,FREETYPE,freetype2))
 CE_DEFS += $(patsubst -I%,-isystem %,$(FREETYPE_CPPFLAGS))
@@ -278,7 +342,7 @@ endif
 #
 #CPPFLAGS	+= -DFLARM_AVERAGE  NOW INSIDE options.h
 #CPPFLAGS	+= -Wchar-subscripts -Wformat -Winit-self -Wimplicit -Wmissing-braces -Wparentheses -Wreturn-type
-#CPPFLAGS	+= -Wunused-label -Wunused-variable -Wunused-value -Wuninitialized
+CPPFLAGS	+= -Wunused-label -Wunused-variable -Wunused-value -Wuninitialized
 
 CPPFLAGS	+= -Wall -Wno-char-subscripts
 #CPPFLAGS	+= -Wall -Wno-char-subscripts -Wignored-qualifiers -Wunsafe-loop-optimizations 
@@ -331,6 +395,15 @@ CFLAGS		:= $(OPTIMIZE) $(PROFILE)
 ifeq ($(CONFIG_LINUX),y)
 LDLIBS :=
 LDFLAGS :=
+	
+ifeq ($(TARGET_IS_KOBO),y)
+
+# use our glibc version and its ld.so on the Kobo, not the one from
+# the stock Kobo firmware, as it may be incompatible
+LDFLAGS += -Wl,--dynamic-linker=/opt/LK8000/lib/ld-linux-armhf.so.3
+LDFLAGS += -Wl,--rpath=/opt/LK8000/lib
+
+endif
 
 else
 LDFLAGS		:=-Wl,--major-subsystem-version=$(CE_MAJOR)
@@ -342,11 +415,12 @@ endif
 LDFLAGS		+=$(PROFILE) -Wl,-Map=output.map
 
 ifeq ($(CONFIG_LINUX),y)
-  LDLIBS		+= -lstdc++ -lzzip -pthread -march=native -lpng -ljpeg -lrt -lm $(FREETYPE_LDLIBS)
-
-    ifeq ($(USE_SDL), y)
-	LDLIBS += $(SDL_LDLIBS)
-    endif
+  LDLIBS += -lstdc++ -pthread -march=native -lpng -lrt -lm $(FREETYPE_LDLIBS)  $(ZZIP_LDLIBS)
+  
+  ifeq ($(USE_SDL), y)
+    LDLIBS += $(SDL_LDLIBS)
+    LDLIBS += $(SDL_MIXER_LDLIBS)
+  endif
 else
 ifeq ($(CONFIG_PC),y)
   LDLIBS := -Wl,-Bstatic -lstdc++  -lmingw32 -lcomctl32 -lkernel32 -luser32 -lgdi32 -ladvapi32 -lwinmm -lmsimg32 -lwsock32 -lole32 -loleaut32 -luuid
@@ -385,8 +459,8 @@ TARGET_ARCH	:=-mwin32 $(MCPU)
 ifeq ($(TARGET),PNA)
 TARGET_ARCH	:=-mwin32
 endif
-ifeq ($(TARGET),LINUX)
-TARGET_ARCH	:=
+ifeq ($(CONFIG_LINUX),y)
+TARGET_ARCH	:= $(MCPU)
 endif
 
 endif
@@ -417,19 +491,21 @@ endif
 
 include build/xcs_screen.mk
 include build/xcs_event.mk
-include build/xcs_os.mk
-ifeq ($(TARGET),LINUX)
+include build/lk_os.mk
+
+ifeq ($(CONFIG_LINUX),y)
 include build/bitmap2png.mk
 endif
+
 ####### sources
 WINDOW := \
 	$(SRC_WINDOW)/WndMain.cpp \
-	$(XCS_OS) \
 	$(XCS_EVENT) \
 	$(XCS_SCREEN) \
+	$(LK_OS) \
 
 
-ifneq ($(CONFIG_LINUX),y)
+ifeq ($(CONFIG_WIN32),y)
 WINDOW += \
 	$(SRC_WINDOW)/Win32/Window.cpp \
 	$(SRC_WINDOW)/Win32/WndMainBase.cpp \
@@ -439,11 +515,25 @@ WINDOW += \
 	$(SRC_WINDOW)/Win32/WndTextEdit.cpp \
 	$(SRC_WINDOW)/Win32/WndTextLabel.cpp \
 	$(SRC_WINDOW)/Win32/WndCtrlBase.cpp \
-	\
-	$(SRC)/OS/Win/CpuLoad.cpp \
-	$(SRC)/OS/Win/Memory.cpp \
-	$(SRC)/OS/Win/RotateScreen.cpp\
+
+endif
 	
+
+ifeq ($(USE_SOUND_EXTDEV), y)	
+SOUND := \
+	$(SRC)/Sound/ExtDev/Sound.cpp \
+	$(SRC)/Sound/ExtDev/sound_table.cpp \
+
+else ifeq ($(USE_SDL), y)	
+SOUND := \
+	$(SRC)/Sound/SDL/Sound.cpp \
+	
+endif
+
+ifeq ($(CONFIG_WIN32),y)
+SOUND := \
+	$(SRC)/Sound/Win32/Sound.cpp \
+
 endif
 	
 SCREEN := \
@@ -454,6 +544,12 @@ SCREEN := \
 	$(SRC_SCREEN)/LKSurface.cpp \
 	$(SRC_SCREEN)/LKWindowSurface.cpp \
 	$(SRC_SCREEN)/LKBitmapSurface.cpp \
+
+ifeq ($(CONFIG_WIN32),y)
+SCREEN += \
+	$(SRC_SCREEN)/GDI/AlphaBlend.cpp \
+	
+endif
 	
 LIBRARY	:=\
 	$(LIB)/bsearch.cpp \
@@ -502,6 +598,8 @@ LKINTER	:=\
 	$(NTR)/LKInterface.cpp \
 	$(NTR)/OverTargets.cpp\
 	$(NTR)/VirtualKeys.cpp\
+	$(NTR)/CScreenOrientation.cpp\
+	
 
 DRAW	:=\
 	$(DRW)/CalculateScreen.cpp \
@@ -540,9 +638,7 @@ DRAW	:=\
 	$(DRW)/DrawThermalEstimate.cpp \
 	$(DRW)/DrawWind.cpp \
 	$(DRW)/Draw_Primitives.cpp \
-	$(DRW)/LKDrawAspNearest.cpp \
 	$(DRW)/LKDrawBottomBar.cpp \
-	$(DRW)/LKDrawCommon.cpp \
 	$(DRW)/LKDrawCpuStatsDebug.cpp \
 	$(DRW)/LKDrawFLARMTraffic.cpp \
 	$(DRW)/LKDrawInfoPage.cpp \
@@ -550,9 +646,7 @@ DRAW	:=\
 	$(DRW)/LKDrawMapSpace.cpp \
 	$(DRW)/LKDrawNearest.cpp \
 	$(DRW)/LKDrawTargetTraffic.cpp \
-	$(DRW)/LKDrawThermalHistory.cpp \
 	$(DRW)/LKDrawTrail.cpp \
-	$(DRW)/LKDrawTraffic.cpp \
 	$(DRW)/LKDrawVario.cpp \
 	$(DRW)/LKDrawWaypoints.cpp \
 	$(DRW)/LKDrawWelcome.cpp \
@@ -696,7 +790,6 @@ TASK	:=\
 	$(TSK)/PGTask/PGConeTaskPt.cpp\
 
 TERRAIN	:=\
-	$(TER)/Cache.cpp	\
 	$(TER)/OpenCreateClose.cpp	\
 	$(TER)/RasterTerrain.cpp	\
 	$(TER)/RAW.cpp	\
@@ -721,6 +814,7 @@ UTILS	:=\
 	$(SRC)/utils/md5.cpp \
 	$(SRC)/utils/filesystem.cpp \
 	$(SRC)/utils/openzip.cpp \
+	$(SRC)/utils/TextWrapArray.cpp \
 
 COMMS	:=\
 	$(CMM)/LKFlarm.cpp\
@@ -807,7 +901,6 @@ DLGS	:=\
 	$(DLG)/dlgConfiguration2.cpp \
 	$(DLG)/dlgCustomKeys.cpp \
 	$(DLG)/dlgCustomMenu.cpp \
-	$(DLG)/dlgFontEdit.cpp \
 	$(DLG)/dlgHelp.cpp \
 	$(DLG)/dlgInfoPages.cpp \
 	$(DLG)/dlgLKAirspaceWarning.cpp \
@@ -867,6 +960,7 @@ DLGS	:=\
 SRC_FILES :=\
 	$(WINDOW) \
 	$(SCREEN) \
+	$(SOUND) \
 	$(SRC)/AirfieldDetails.cpp \
 	$(SRC)/Alarms.cpp\
 	$(SRC)/Backlight.cpp 		\
@@ -883,7 +977,8 @@ SRC_FILES :=\
 	$(SRC)/ExpandMacros.cpp	\
 	$(SRC)/FlarmIdFile.cpp 		\
 	$(SRC)/FlarmTools.cpp		\
-	$(SRC)/Fonts.cpp \
+	$(SRC)/Fonts1.cpp \
+	$(SRC)/Fonts2.cpp		\
 	$(SRC)/Geoid.cpp \
 	$(SRC)/Globals.cpp	\
 	$(SRC)/InitFunctions.cpp\
@@ -891,7 +986,6 @@ SRC_FILES :=\
 	$(SRC)/lk8000.cpp\
 	$(SRC)/LiveTracker.cpp \
 	$(SRC)/LKAirspace.cpp	\
-	$(SRC)/LKFonts.cpp		\
 	$(SRC)/LKInstall.cpp 		\
 	$(SRC)/LKLanguage.cpp		\
 	$(SRC)/LKObjects.cpp \
@@ -935,11 +1029,11 @@ SRC_FILES :=\
 	$(SRC)/SaveLoadTask/LoadCupTask.cpp\
 	$(SRC)/SaveLoadTask/LoadGpxTask.cpp\
 	$(SRC)/Settings.cpp\
-	$(SRC)/Sound.cpp \
 	$(SRC)/StatusFile.cpp \
 	$(SRC)/Thread_Calculation.cpp\
 	$(SRC)/Thread_Draw.cpp	\
 	$(SRC)/TrueWind.cpp		\
+	$(SRC)/TunedParameter.cpp		\
 	$(SRC)/units.cpp \
 	$(SRC)/Utils.cpp		\
 	$(SRC)/WindowControls.cpp \
@@ -1038,9 +1132,22 @@ POCO :=\
 #endif
 
 DIALOG_XML = $(wildcard Common/Data/Dialogs/*.xml)
-
+BITMAP_RES = $(wildcard Common/Data/Bitmaps/*.bmp)
+ifeq ($(CONFIG_LINUX),y)
+BITMAP_RES_O := $(BIN)/Resource/resource_bmp.o
+endif
 ####### compilation outputs
 
+ifeq ($(TARGET_IS_KOBO), y)
+DISTRIB_OUTPUT := KoboRoot.tgz
+
+# temporary still we don't have kobo menu.	
+SRC_FILES += \
+	$(SRC)/xcs/Kobo/System.cpp \
+	$(SRC)/xcs/Kobo/Kernel.cpp
+	
+
+endif
 # Add JP2 library for JP2000 unsupported raster maps
 # (BIN)/jasper.a \
 
@@ -1060,6 +1167,8 @@ endif
 
 IGNORE	:= \( -name .git \) -prune -o
 
+include build/distrib.mk
+include build/kobo.mk
 
 ####### dependency handling
 
@@ -1070,11 +1179,11 @@ cc-flags	=$(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) $(CPPFLAGS_$(dirtarget)) $(TARGET_AR
 cxx-flags	=$(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) $(CPPFLAGS_$(dirtarget)) $(TARGET_ARCH)
 
 
+
 ####### targets
 .PHONY: FORCE all clean cleani tags rebuild cppcheck
 
-all:	$(PNG) $(MASKED_PNG) $(OUTPUTS)
-	@$(NQ)echo "GCCVERSION : $(GCCVERSION)"
+all:	$(DISTRIB_OUTPUT) $(PNG) $(MASKED_PNG) $(OUTPUTS)
 	
 rebuild:
 	@$(MAKE) clean
@@ -1158,7 +1267,7 @@ $(BIN)/%.o: $(SRC)/%.cpp
 	$(Q)$(CXX) $(cxx-flags) -c $(OUTPUT_OPTION) $<
 	@sed -i '1s,^[^ :]*,$@,' $(DEPFILE)
 
-$(BIN)/resource.a: $(BIN)/Resource/resource_data.o $(BIN)/Resource/resource_xml.o
+$(BIN)/resource.a: $(BIN)/Resource/resource_data.o $(BIN)/Resource/resource_xml.o $(BITMAP_RES_O) 
 	@$(NQ)echo "  AR      $@"
 	$(Q)$(AR) $(ARFLAGS) $@ $^
 
@@ -1171,6 +1280,15 @@ $(BIN)/Resource/resource_data.o:  $(RSCSRC)/resource_data.S
 	@$(NQ)echo "  AS     $@"
 	$(Q)$(MKDIR) $(dir $@)
 	$(Q)$(AS) -I'$(dir $<)' $(OUTPUT_OPTION) $<
+
+$(BIN)/Resource/resource_bmp.o:  $(BIN)/Resource/resource_bmp.png.S
+	@$(NQ)echo "  AS     $@"
+	$(Q)$(MKDIR) $(dir $@)
+	$(Q)$(AS) -I'$(dir $<)' $(OUTPUT_OPTION) $<
+
+$(BIN)/Resource/resource_bmp.png.S : $(RSCSRC)/resource_bmp.S $(patsubst Common/Data/Bitmaps/%.bmp,$(BIN)/Data/Bitmaps/%.png,$(BITMAP_RES))
+	@$(NQ)echo "  update $@"
+	@sed -r 's|(^.*")\.\./\.\./(Data/Bitmaps[^"]+)(.bmp)".*$$|\1\.\./\.\./\.\./$(BIN)/\2.png"|g' $< > $@
 
 $(BIN)/Resource/resource_xml.min.S :  $(RSCSRC)/resource_xml.S $(patsubst Common/Data/Dialogs/%.xml,$(BIN)/Data/Dialogs/%.min.xml,$(DIALOG_XML))
 	@$(NQ)echo "  update $@"
@@ -1192,7 +1310,12 @@ $(BIN)/Data/Dialogs/%.min.xml: Common/Data/Dialogs/%.xml
 $(PNG_TARGET)/%.PNG : $(BITMAP_DIR)/%.BMP
 	@$(NQ)echo "  Convert Image	  $@"
 	$(Q)$(MKDIR) $(dir $@)
-	$(Q)convert $^ $@
+	$(Q)convert $^ PNG24:$@
+
+$(BIN)/Data/Bitmaps/%.png: Common/Data/Bitmaps/%.bmp
+	@$(NQ)echo "  Convert Image	  $@"
+	$(Q)$(MKDIR) $(dir $@)
+	$(Q)convert $^ PNG24:$@
 
 .PRECIOUS: $(BIN)/Data/Dialogs/%.min.xml \
 	$(BIN)/lk8000.min.rc

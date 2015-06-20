@@ -189,6 +189,8 @@ void Globals_Init(void) {
   ActiveAlternate = -1;
 
   GPSAltitudeOffset = 0;
+  UseExtSound1=false;
+  UseExtSound2=false;
   UseGeoidSeparation=false;
   PressureHg=false;
 
@@ -206,7 +208,7 @@ void Globals_Init(void) {
 
   LastDoRangeWaypointListTime=0;
   DeviceNeedClipping=false; // forcing extensive clipping 
-  ForcedClipping=false;	    // force clipping around
+
   EnableAutoBacklight=true;
   EnableAutoSoundVolume=true;
   AircraftCategory=0;
@@ -240,7 +242,7 @@ void Globals_Init(void) {
   AverEffTime=0;
   DrawBottom=false;
   BottomMode=BM_CRU;
-  BottomSize=1; // Init by MapWindow3
+  BottomSize=1; // Init by LKInitScreen only
   TopSize=0;
   BottomGeom=0;
 
@@ -304,14 +306,8 @@ void Globals_Init(void) {
 
   GlideBarOffset=0;
   EngineeringMenu=false; // never saved to registry
-  splitter=1; 
 
   NumDataOptions = 0;
-
-  #if (WINDOWSPC>0)
-  SCREENWIDTH=800;
-  SCREENHEIGHT=400;
-  #endif
 
   debounceTimeout.assign(0, 250*1000); //250ms
 
@@ -325,6 +321,7 @@ void Globals_Init(void) {
   ScreenScale=1;
   ScreenIntScale=false;
   Screen0Ratio=1;
+  ScreenGeometry=0;
 
   // Default arrival mode calculation type
   // 091016 currently not changed anymore
@@ -337,8 +334,7 @@ void Globals_Init(void) {
   // traffic DoTraffic interval, also reset during key up and down to prevent wrong selections
   LastDoTraffic=0;
   LastDoNearest=0;
-  LastDoAirspaces=0;
-  LastDoCommon=0;
+   LastDoCommon=0;
   LastDoThermalH=0;
 
 
@@ -387,6 +383,7 @@ void Globals_Init(void) {
   ThLongitude=1;
   ThermalRadius=0;
   SinkRadius=0;
+  SimNettoVario=0.;
 
   // LK8000 sync flags
   NearestDataReady=false;
@@ -426,17 +423,16 @@ void Globals_Init(void) {
   AirspaceAckAllSame = 0; 
 
   SnailNext = 0;
-  #if LONGSNAIL
   LongSnailNext = 0;
-  #endif
 
   // OLC COOKED VALUES
   //CContestMgr::CResult OlcResults[CContestMgr::TYPE_NUM];
 
   // user interface settings
   FinalGlideTerrain = 1;
-  EnableSoundModes = true;
+  EnableSoundModes = true; // this is init by main in v53
   OverlayClock = false;
+  UseTwoLines = false; // remember to switch on the nearest pages MDI_ when this is changed runtime
   LKLanguageReady = false;
 
 
@@ -455,6 +451,7 @@ void Globals_Init(void) {
   POLARFILECHANGED = FALSE;
   LANGUAGEFILECHANGED = FALSE;
   INPUTFILECHANGED = FALSE;
+  FONTSCHANGED= false;
 
   ActiveWayPoint = -1;
   PanTaskEdit    = -1;
@@ -486,6 +483,7 @@ void Globals_Init(void) {
   #else
   SetSystemTimeFromGPS = false;
   #endif
+  SaveRuntime = false;
 
   SelectedWaypoint = -1;
   TrailActive = 1; // long
@@ -546,7 +544,7 @@ void Globals_Init(void) {
   DialogActive=false;
 
   PDABatteryPercent = 100;
-  PDABatteryTemperature = 0;
+  PDABatteryTemperature = 0;    // Only valid for UNDER_CE
   PDABatteryStatus=0;
   PDABatteryFlag=0;
 
@@ -579,10 +577,6 @@ void Globals_Init(void) {
   DistanceUnit_Config = 2;	// default is km
   LiftUnit_Config = 1;		// default m/s
   AltitudeUnit_Config = 1;	// default m
-
-  // Editable fonts
-  FontDesc_MapWindow[0]=_T('\0');
-  FontDesc_MapLabel [0]=_T('\0');
 
   // Logger
   PilotName_Config[0]=_T('\0');

@@ -14,6 +14,7 @@
 #include <ctype.h>
 #include "utils/stl_utils.h"
 #include "utils/stringext.h"
+#include "OS/Memory.h"
 
 // #define DEBUG_LOGGER	1
 
@@ -216,8 +217,7 @@ void StopLogger(void) {
 		gettext(szMessage),
 	// LKTOKEN  _@M404_ = "Logger Error" 
 		gettext(TEXT("_@M404_")), mbOk);
-      _tcsncat(szMessage,TEXT(SNEWLINE),MAX_PATH);
-      StartupStore(szMessage);
+      StartupStore(_T("%s") NEWLINE, szMessage);
       break;
 
     case 2: // NoMoveYesRename
@@ -227,8 +227,7 @@ void StopLogger(void) {
 		gettext(szMessage),
 	// LKTOKEN  _@M404_ = "Logger Error" 
 		gettext(TEXT("_@M404_")), mbOk);
-      _tcsncat(szMessage,TEXT(SNEWLINE),MAX_PATH);
-      StartupStore(szMessage);
+      StartupStore(_T("%s") NEWLINE, szMessage);
       break;
 
     case 3: // Insufficient Storage.  NoRename
@@ -239,8 +238,7 @@ void StopLogger(void) {
 		gettext(szMessage),
 	// LKTOKEN  _@M404_ = "Logger Error" 
 		gettext(TEXT("_@M404_")), mbOk);
-      _tcsncat(szMessage,TEXT(SNEWLINE),MAX_PATH);
-      StartupStore(szMessage);
+      StartupStore(_T("%s") NEWLINE, szMessage);
       break;
 
     case 4: // Insufficient Storage.  YesRename
@@ -250,8 +248,7 @@ void StopLogger(void) {
 		gettext(szMessage),
 	// LKTOKEN  _@M404_ = "Logger Error" 
 		gettext(TEXT("_@M404_")), mbOk);
-      _tcsncat(szMessage,TEXT(SNEWLINE),MAX_PATH);
-      StartupStore(szMessage);
+      StartupStore(_T("%s") NEWLINE, szMessage);
       break;
 } // error handler
 
@@ -883,7 +880,7 @@ static bool LoggerDeclare(PDeviceDescriptor_t dev, Declaration_t *decl)
 
 		if(errorBuffer[0] == '\0') {
 			// LKTOKEN  _@M1410_ = "Unknown error" 
-			_sntprintf(errorBuffer, ERROR_BUFFER_LEN, gettext(_T("_@M1410_")));
+			_tcsncpy(errorBuffer, gettext(_T("_@M1410_")), ERROR_BUFFER_LEN);
 		} else {
 			// do it just to be sure
 			errorBuffer[ERROR_BUFFER_LEN - 1] = '\0';
@@ -1077,7 +1074,7 @@ TCHAR testtext7[] = TEXT("2008-01-05-XXX-AAA-01.IGC");
 
 bool LoggerClearFreeSpace(void) {
   bool found = true;
-  unsigned long kbfree=0;
+  size_t kbfree=0;
   TCHAR pathname[MAX_PATH+1];
   TCHAR subpathname[MAX_PATH+1];
   int numtries = 0;

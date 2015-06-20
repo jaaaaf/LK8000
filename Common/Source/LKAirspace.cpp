@@ -28,7 +28,7 @@
 #endif
 
 
-static const int k_nAreaCount = 14;
+static const int k_nAreaCount = 15;
 static const TCHAR* k_strAreaStart[k_nAreaCount] = {
     _T("R"),
     _T("Q"),
@@ -43,7 +43,8 @@ static const TCHAR* k_strAreaStart[k_nAreaCount] = {
     _T("E"),
     _T("F"),
     _T("G"),
-    _T("TMZ")
+    _T("TMZ"),
+    _T("RMZ")
 };
 static const int k_nAreaType[k_nAreaCount] = {
     RESTRICT,
@@ -59,7 +60,8 @@ static const int k_nAreaType[k_nAreaCount] = {
     CLASSE,
     CLASSF,
     CLASSG,
-    CLASSTMZ
+    CLASSTMZ,
+    CLASSRMZ
 };
 
 
@@ -119,11 +121,15 @@ const LKColor& CAirspaceBase::TypeColor(void) const {
     return MapWindow::GetAirspaceColourByClass(_type);
 }
 
-#ifdef HAVE_HATCHED_BRUSH
+
 const LKBrush& CAirspaceBase::TypeBrush(void) const {
+#ifdef HAVE_HATCHED_BRUSH    
     return MapWindow::GetAirspaceBrushByClass(_type);
+#else
+    return MapWindow::GetAirSpaceSldBrushByClass(_type);    
+#endif    
 }
-#endif
+
 
 void CAirspaceBase::AirspaceAGLLookup(double av_lat, double av_lon, double *basealt_out, double *topalt_out) const {
     double base_out = _base.Altitude;
@@ -733,21 +739,6 @@ void CAirspaceBase::Init(const TCHAR *name, const int type, const AIRSPACE_ALT &
     _flyzone = flyzone;
 }
 
-void CAirspace::ClipScreenPoint(const RECT& rcDraw) {
-    // add extra point for final point if it doesn't equal the first
-    // this is required to close some airspace areas that have missing
-    // final point
-    if ((_screenpoints[_screenpoints.size() - 1].x != _screenpoints[0].x) || (_screenpoints[_screenpoints.size() - 1].y != _screenpoints[0].y)) {
-        _screenpoints.push_back(_screenpoints[0]);
-    }
-
-    _screenpoints_clipped.clear();
-    _screenpoints_clipped.reserve(_screenpoints.size());
-
-    LKGeom::ClipPolygon(rcDraw, _screenpoints, _screenpoints_clipped);
-}
-
-
 //
 // CAIRSPACE_CIRCLE CLASS
 //
@@ -757,7 +748,6 @@ CAirspace(),
 _latcenter(Center_Latitude),
 _loncenter(Center_Longitude),
 _radius(Airspace_Radius) {
-    _screenpoints_clipped.reserve(65);
     _screenpoints.reserve(65);
     CalcBounds();
     AirspaceAGLLookup(Center_Latitude, Center_Longitude, &_base.Altitude, &_top.Altitude);
@@ -878,9 +868,6 @@ void CAirspace_Circle::CalculateScreenPosition(const rectObj &screenbounds_latlo
                 _screenradius = iround(_radius * ResMapScaleOverDistanceModify);
 
                 LKSurface::buildCircle(_screencenter, _screenradius, _screenpoints);
-
-
-                ClipScreenPoint(rcDraw);
             }
         }
     }
@@ -889,16 +876,16 @@ void CAirspace_Circle::CalculateScreenPosition(const rectObj &screenbounds_latlo
 // Draw airspace
 
 void CAirspace::Draw(LKSurface& Surface, const RECT &rc, bool param1) const {
-    size_t outLength = _screenpoints_clipped.size();
-    const POINT * clip_ptout = &(*_screenpoints_clipped.begin());
+    size_t outLength = _screenpoints.size();
+    const POINT * clip_ptout = &(*_screenpoints.begin());
 
     if (param1) {
         if (outLength > 2) {
-            Surface.Polygon(clip_ptout, outLength);
+            Surface.Polygon(clip_ptout, outLength, rc);
         }
     } else {
         if (outLength > 1) {
-            Surface.Polyline(clip_ptout, outLength);
+            Surface.Polyline(clip_ptout, outLength, rc);
         }
     }
 }
@@ -1153,8 +1140,7 @@ void CAirspace_Area::CalculateScreenPosition(const rectObj &screenbounds_latlon,
                  * ULLI new code ends here
                  *******************************/
 #endif
-                ClipScreenPoint(rcDraw);
-                
+               
 #if DEBUG_NEAR_POINTS
                 StartupStore(_T("... area point geo %i screen %i\n"), _geopoints.size(), _screenpoints.size());
 #endif
@@ -1168,12 +1154,15 @@ void CAirspace_Area::CalculateScreenPosition(const rectObj &screenbounds_latlon,
 //
 
 bool CAirspaceManager::StartsWith(const TCHAR *Text, const TCHAR *LookFor) const {
-    while (1) {
-        if (!(*LookFor)) return true;
+    if (!(*LookFor)) return true;
+    int count_look=_tcslen(LookFor);
+    do {
+        //if (!(*LookFor)) return true;
         if (*Text != *LookFor) return false;
         ++Text;
         ++LookFor;
-    }
+    } while (--count_look);
+    return true;
 }
 
 bool CAirspaceManager::CheckAirspaceAltitude(const AIRSPACE_ALT &Base, const AIRSPACE_ALT &Top) const {
@@ -1555,9 +1544,12 @@ void CAirspaceManager::FillAirspacesFromOpenAir(ZZIP_FILE *fp) {
     double lat = 0, lon = 0;
     bool flyzone = false;
 
+    short maxwarning=3; // max number of warnings to confirm, then automatic confirmation
+
     StartupStore(TEXT(". Reading airspace file%s"), NEWLINE);
 
-    while (ReadString(fp, READLINE_LENGTH, Text)) {
+    charset cs = charset::unknown;
+    while (ReadString(fp, READLINE_LENGTH, Text, cs)) {
         ++linecount;
         p = Text;
         //Skip whitespaces
@@ -1665,10 +1657,24 @@ void CAirspaceManager::FillAirspacesFromOpenAir(ZZIP_FILE *fp) {
                         // TODO: adding airspace labels
                         continue;
 
+                    case _T('G'): // AG
+                        // ignore 
+                        continue;
+
+                    case _T('Y'): // AY
+                        // ignore 
+                        continue;
+
                     default:
-                        _stprintf(sTmp, TEXT("Parse error at line %d\r\n\"%s\"\r\nLine skipped."), linecount, p);
-                        // LKTOKEN  _@M68_ = "Airspace" 
-                        if (MessageBoxX(sTmp, gettext(TEXT("_@M68_")), mbOkCancel) == IdCancel) return;
+			if (maxwarning>0) {
+			    if (maxwarning==1)
+                                _stprintf(sTmp, TEXT("Parse error at line %d\r\n\"%s\"\r\nNO OTHER WARNINGS."), linecount, p);
+			    else
+                                _stprintf(sTmp, TEXT("Parse error at line %d\r\n\"%s\"\r\nLine skipped."), linecount, p);
+			    maxwarning--;
+                            // LKTOKEN  _@M68_ = "Airspace" 
+                            if (MessageBoxX(sTmp, gettext(TEXT("_@M68_")), mbOkCancel) == IdCancel) return;
+			} 
                         break;
                 } //sw
                 break;
@@ -1720,9 +1726,16 @@ void CAirspaceManager::FillAirspacesFromOpenAir(ZZIP_FILE *fp) {
                         // todo DY airway segment
                         // what about 'V T=' ?
                     default:
-                        _stprintf(sTmp, TEXT("Parse error at line %d\r\n\"%s\"\r\nLine skipped."), linecount, p);
-                        // LKTOKEN  _@M68_ = "Airspace" 
-                        if (MessageBoxX(sTmp, gettext(TEXT("_@M68_")), mbOkCancel) == IdCancel) return;
+			if (maxwarning>0) {
+			    if (maxwarning==1)
+                                _stprintf(sTmp, TEXT("Parse error at line %d\r\n\"%s\"\r\nNO OTHER WARNINGS"), linecount, p);
+			    else
+                                _stprintf(sTmp, TEXT("Parse error at line %d\r\n\"%s\"\r\nLine skipped."), linecount, p);
+			    maxwarning--;
+
+                            // LKTOKEN  _@M68_ = "Airspace" 
+                            if (MessageBoxX(sTmp, gettext(TEXT("_@M68_")), mbOkCancel) == IdCancel) return;
+			}
                         break;
                 } //sw
                 break;
@@ -1763,9 +1776,16 @@ void CAirspaceManager::FillAirspacesFromOpenAir(ZZIP_FILE *fp) {
                 // if none of the above, then falling to default
 
             default:
-                _stprintf(sTmp, TEXT("Parse error at line %d\r\n\"%s\"\r\nLine skipped."), linecount, p);
-                // LKTOKEN  _@M68_ = "Airspace" 
-                if (MessageBoxX(sTmp, gettext(TEXT("_@M68_")), mbOkCancel) == IdCancel) return;
+		if (maxwarning>0) {
+		    if (maxwarning==1)
+                        _stprintf(sTmp, TEXT("Parse error at line %d\r\n\"%s\"\r\nNO OTHER WARNINGS."), linecount, p);
+		    else
+                        _stprintf(sTmp, TEXT("Parse error at line %d\r\n\"%s\"\r\nLine skipped."), linecount, p);
+
+                    maxwarning--;
+                    // LKTOKEN  _@M68_ = "Airspace" 
+                    if (MessageBoxX(sTmp, gettext(TEXT("_@M68_")), mbOkCancel) == IdCancel) return;
+		}
                 break;
         }//sw
 
@@ -1855,6 +1875,15 @@ void CAirspaceManager::CloseAirspaces() {
     if (_airspaces.size() == 0) return;
     SaveSettings();
 
+    _detail_queue.clear();
+    _detail_current = nullptr;
+    
+    // need to cleanup, otherwise "Item.Pointer" still not null but invalid
+    for (LKAirspace_Nearest_Item& Item : LKAirspaces) {
+        Item.Valid = false;
+        Item.Pointer = NULL;
+    }
+    
     // this is needed for avoid crash if airspaces configuration is changed
     // after Step 1 and before step 2 of multicalc inside AirspacesWarning
     CAirspace::ResetSideviewNearestInstance();
@@ -2683,6 +2712,8 @@ const TCHAR* CAirspaceManager::GetAirspaceTypeText(int type) const {
             return TEXT("AAT");
         case CLASSTMZ:
             return TEXT("TMZ");
+	case CLASSRMZ:
+	    return TEXT("RMZ");
         case OTHER:
             // LKTOKEN  _@M765_ = "Unknown" 
             return gettext(TEXT("_@M765_"));
@@ -2723,6 +2754,8 @@ const TCHAR* CAirspaceManager::GetAirspaceTypeShortText(int type) const {
             return TEXT("Wav");
         case CLASSTMZ:
             return TEXT("TMZ");
+        case CLASSRMZ:
+            return TEXT("RMZ");
         default:
             return TEXT("?");
     }
@@ -2980,7 +3013,7 @@ void CAirspaceManager::LoadSettings() {
         CCriticalSection::CGuard guard(_csairspaces);
         asp_data = (asp_data_struct*) malloc(sizeof (asp_data_struct) * _airspaces.size());
         if (asp_data == NULL) {
-            OutOfMemory(__FILE__, __LINE__);
+            OutOfMemory(_T(__FILE__), __LINE__);
             fclose(f);
             return;
         }
@@ -3048,6 +3081,33 @@ void CAirspaceManager::AirspaceDisableWaveSectors(void) {
 #endif
 
 
+// queue new airspaces for popup details 
+void CAirspaceManager::PopupAirspaceDetail(CAirspace * pAsp) {
+    CCriticalSection::CGuard guard(_csairspaces);
+    _detail_queue.push_back(pAsp);
+}
+
+
+void dlgAirspaceDetails();
+
+// show details for each airspaces queued (proccesed by MainThread inside InputsEvent::DoQueuedEvents())
+void CAirspaceManager::ProcessAirspaceDetailQueue() {
+
+    _csairspaces.lock();
+    while(!_detail_queue.empty()) {
+        _detail_current = _detail_queue.front();
+        _detail_queue.pop_front(); // remove Airspace from fifo
+        
+        _csairspaces.unlock(); 
+        dlgAirspaceDetails();
+        _csairspaces.lock();
+    }
+    _detail_current = nullptr;
+    _csairspaces.unlock();
+}
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // Draw Picto methods
 //  this methods are NEVER used at same time of airspace loading
@@ -3068,17 +3128,11 @@ void CAirspace::DrawPicto(LKSurface& Surface, const RECT &rc) const {
         
         const auto oldPen = Surface.SelectObject(FramePen);
         
-#ifdef HAVE_HATCHED_BRUSH 
         const auto oldBrush = Surface.SelectObject(Enabled() ? TypeBrush() : LKBrush_Hollow);
-#else
-#warning "TODO : maybe we need solid brush or that !"
-#endif
 
         Surface.Polygon(ptOut, Length);
 
-#ifdef HAVE_HATCHED_BRUSH 
         Surface.SelectObject(oldBrush);
-#endif
         Surface.SelectObject(oldPen);
         Surface.SetTextColor(oldColor);
     }

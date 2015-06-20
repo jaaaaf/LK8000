@@ -29,6 +29,11 @@
 #include "FlightDataRec.h"
 
 #include "Event/Event.h"
+#include "Sound/Sound.h"
+#include "Kobo/System.hpp"
+
+extern bool ScreenHasChanged(void);
+extern void ReinitScreen(void);
 
 WndMain::WndMain() : WndMainBase(), _MouseButtonDown(), _isRunning() {
 }
@@ -94,7 +99,6 @@ void Shutdown(void) {
   // LKTOKEN _@M1219_ "Shutdown, please wait..."
   CreateProgressDialog(gettext(TEXT("_@M1219_")));
  
-  StartupStore(TEXT(". CloseDrawingThread%s"),NEWLINE);
   // 100526 this is creating problem in SIM mode when quit is called from X button, and we are in waypoint details
   // or probably in other menu related screens. However it cannot happen from real PNA or PDA because we don't have
   // that X button.
@@ -218,7 +222,7 @@ void Shutdown(void) {
 	    );
   StartupStore(foop);
 #endif
-  StartupStore(_T("Destroy MainWindow"));
+  StartupStore(_T("Destroy MainWindow" NEWLINE));
   MainWindow.Destroy();
 }
 
@@ -252,13 +256,14 @@ void WndMain::OnDestroy() {
 
 bool WndMain::OnSize(int cx, int cy) {
     MapWindow::_OnSize(cx, cy);
+	if (ScreenHasChanged()) ReinitScreen();
     return true;
 }
 
 extern StartupState_t ProgramStarted;
 bool WndMain::OnPaint(LKSurface& Surface, const RECT& Rect) {
     if(ProgramStarted >= psFirstDrawDone) {
-        Surface.Copy(Rect.left, Rect.top, Rect.right - Rect.left, Rect.bottom - Rect.top, ScreenSurface, Rect.left, Rect.top);
+        Surface.Copy(Rect.left, Rect.top, Rect.right - Rect.left, Rect.bottom - Rect.top, BackBufferSurface, Rect.left, Rect.top);
     } else {
         
     }

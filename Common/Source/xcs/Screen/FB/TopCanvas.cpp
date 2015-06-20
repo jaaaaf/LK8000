@@ -169,7 +169,11 @@ TopCanvas::Create(PixelSize new_size,
   epd_update_marker = 0;
 
 #ifdef KOBO
-  ioctl(fd, MXCFB_SET_UPDATE_SCHEME, UPDATE_SCHEME_QUEUE_AND_MERGE);
+  int updateSheme = UPDATE_SCHEME_QUEUE_AND_MERGE;
+  if(ioctl(fd, MXCFB_SET_UPDATE_SCHEME, &updateSheme) < 0) {
+      fprintf(stderr, "Couldn't set update_scheme: %s\n",
+            strerror(errno));
+  }
 #endif
 
   const unsigned width = vinfo.xres, height = vinfo.yres;
@@ -434,7 +438,15 @@ TopCanvas::Flip()
     TEMP_USE_AMBIENT,
     enable_dither ? EPDC_FLAG_FORCE_MONOCHROME : 0,
   };
-
+ 
+  if(unghost) {
+    unghost = false;
+    epd_update_data.flags |= EPDC_FLAG_ENABLE_INVERSION;
+    ioctl(fd, MXCFB_SEND_UPDATE, &epd_update_data);
+    Wait();
+    epd_update_data.flags &= ~EPDC_FLAG_ENABLE_INVERSION;
+  }
+  
   ioctl(fd, MXCFB_SEND_UPDATE, &epd_update_data);
 #endif
 

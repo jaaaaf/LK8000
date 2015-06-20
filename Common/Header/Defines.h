@@ -84,11 +84,6 @@
 #define FASTDOUBLECLICK DOUBLECLICKINTERVAL/2-30
 #define BESTALTERNATEINTERVAL 60.0 // interval in seconds between BA search (slow)
 
-#if (WINDOWSPC>0) && !TESTBENCH
-#define FASTPANNING 250
-#else
-#define FASTPANNING 700
-#endif
 
 /*
  * Global defines
@@ -100,14 +95,15 @@
 #endif
 
 #define LKFORK		"LK8000"
-#define LKVERSION	"X"
-#define LKRELEASE	"00"
+#define LKVERSION	"BrunoTL"
+#define LKRELEASE	"Experimental0620"
 
 #define LKDATADIR	"LK8000"
 #define LKPROFILE	"DEFAULT_PROFILE.prf"
 #define LKAIRCRAFT	"DEFAULT_AIRCRAFT.acf"
 #define LKPILOT		"DEFAULT_PILOT.plt"
 #define LKDEVICE	"DEFAULT_DEVICE.dvc"
+#define LKSOUNDTABLE    "SOUND_TABLE.TXT"
 
 /*
  * LK8000 directories
@@ -115,7 +111,9 @@
 #define LKD_HOME	LKDATADIR
 #define LKD_LOGS	"_Logger"
 #define LKD_SYSTEM	"_System"
+#if !defined(DISABLEAUDIO) || !defined(DISABLEEXTAUDIO)
 #define LKD_SOUNDS	"_System\\_Sounds"
+#endif
 #define LKD_BITMAPS	"_System\\_Bitmaps"
 #define LKD_DIALOGS     "_System\\_Dialogs"
 #define LKD_CONF	"_Configuration"
@@ -176,6 +174,7 @@
 #define LKF_PERSIST	"Persist.log"
 #define LKF_FLARMNET	"flarmnet.fln"
 #define LKF_CHECKLIST	"NOTEPAD.txt"
+#define LKF_CREDITS	"CREDITS.txt"
 #define LKF_LOGBOOKTXT	"LOGBOOK.TXT"
 #define LKF_LOGBOOKCSV	"LOGBOOK.CSV"
 #define LKF_LOGBOOKLST	"LOGBOOK.LST"
@@ -215,12 +214,12 @@
 // if we enlarge, resize also MAXNUMPAGES
 #define MAXNEAREST		50
 // Commons are both 1 page of commons and HISTORY as well! HISTORY is sized MAXCOMMON!
-#define MAXCOMMON		50
+#define MAXCOMMON		MAXNEAREST
 #define MAXTRAFFIC		FLARM_MAX_TRAFFIC
 // Max number of airspaces handled by 2.4 nearest airspace page. Basically, the 50 nearest.
-#define MAXNEARAIRSPACES	50
+#define MAXNEARAIRSPACES	MAXNEAREST
 // Max number of thermals in the Nearest Thermals page (out of MAX_THERMAL_HISTORY, normally much larger)
-#define MAXTHISTORY		50
+#define MAXTHISTORY		MAXNEAREST
 
 // Max number of pages in mapspacemode. 
 // Large enough to contain MAXNEAREST/numrows (numraws min 5 on some devices)
@@ -228,10 +227,10 @@
 // It only matters dimensional space, so you can enlarge at a memory cost. 
 // If it is too low, visible waypoints will be limited to this number automatically.
 #define MAXNUMPAGES		9	// the nearest
-#define MAXCOMMONNUMPAGES	9
-#define MAXTRAFFICNUMPAGES	9
-#define MAXAIRSPACENUMPAGES	9
-#define MAXTHISTORYNUMPAGES	9
+#define MAXCOMMONNUMPAGES	MAXNUMPAGES
+#define MAXTRAFFICNUMPAGES	MAXNUMPAGES
+#define MAXAIRSPACENUMPAGES	MAXNUMPAGES
+#define MAXTHISTORYNUMPAGES	MAXNUMPAGES
 
 // Nearest Update time: wait for some seconds before updating nearest pages with
 // new calculations. 5 seconds is far enough, could even be more..
@@ -707,6 +706,7 @@
 
 #define LK_NEXT_CENTER_ALTDIFF 156  // Same As  LK_NEXT_ALTDIFF but always with Waypoint center
 #define LK_NEXT_CENTER_GR	157	// Same as LK_NEXT_GR but always with Waypoint center
+#define LK_START_SPEED		158	// Requiered speed for reach Start of task at Gate Time !
 
 
 // Service values
@@ -822,7 +822,8 @@
 
 #define LKINFOFONT      LK8SmallFont            // was InfoWindowFont
 // km for distance, kmh for speed etc.  in map overlay
-#define LKMAPFONT       LK8MapFont              // was MapWindowFont
+
+#define MAXFONTRESIZE 5 // -5 -4 -3 -2 -1 [0] +1 +2 +3 +4 +5
 
 // McReady
 

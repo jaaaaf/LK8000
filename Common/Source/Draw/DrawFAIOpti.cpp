@@ -74,6 +74,7 @@ void MapWindow::DrawFAIOptimizer(LKSurface& Surface, const RECT& rc, const POINT
 
       if(((fDist > FAI_MIN_DISTANCE_THRESHOLD) && (ui < 3) && !bFlat && (fDist/ fFAIDistance  > 0.05)) )
   	  {
+                #ifndef UNDITHER
   		LKColor rgbCol = RGB_BLUE;
   		switch(ui)
   		{
@@ -83,6 +84,17 @@ void MapWindow::DrawFAIOptimizer(LKSurface& Surface, const RECT& rc, const POINT
   		  default:
   		  break;
   		}
+                #else
+  		LKColor rgbCol = RGB_DARKBLUE;
+  		switch(ui)
+  		{
+  		  case 0: rgbCol = RGB_LIGHTGREY; break;
+  		  case 1: rgbCol = RGB_GREY  ; break;
+  		  case 2: rgbCol = RGB_MIDDLEGREY ; break;
+  		  default:
+  		  break;
+  		}
+                #endif
   		RenderFAISector ( Surface, rc, lat1, lon1, lat2, lon2, 1, rgbCol );
   		RenderFAISector ( Surface, rc, lat1, lon1, lat2, lon2, 0, rgbCol );
   	  }
@@ -532,9 +544,7 @@ int iCnt = 0;
 
       if(j> 0)
       {
-  		ForcedClipping=true;
   		Surface.DrawLine(PEN_DASH, NIBLSCALE(1), line[0] , line[1] , RGB_BLACK, rc);
-  		ForcedClipping=false;
       }
 
 

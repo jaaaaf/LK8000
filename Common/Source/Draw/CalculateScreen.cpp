@@ -10,15 +10,13 @@
 #include "Multimap.h"
 
 int MapWindow::iSnailNext=0;
-#if LONGSNAIL
 int MapWindow::iLongSnailNext=0;
-#endif
 
 rectObj MapWindow::screenbounds_latlon;
 
 
 
-rectObj MapWindow::CalculateScreenBounds(double scale) {
+rectObj MapWindow::CalculateScreenBounds(double scale, const RECT& rc) {
   // compute lat lon extents of visible screen
   rectObj sb;
 
@@ -33,17 +31,17 @@ rectObj MapWindow::CalculateScreenBounds(double scale) {
     
     int dx, dy;
     unsigned int maxsc=0;
-    dx = screen_center.x-DrawRect.right;
-    dy = screen_center.y-DrawRect.top;
+    dx = screen_center.x-rc.right;
+    dy = screen_center.y-rc.top;
     maxsc = max(maxsc, isqrt4(dx*dx+dy*dy));
-    dx = screen_center.x-DrawRect.left;
-    dy = screen_center.y-DrawRect.top;
+    dx = screen_center.x-rc.left;
+    dy = screen_center.y-rc.top;
     maxsc = max(maxsc, isqrt4(dx*dx+dy*dy));
-    dx = screen_center.x-DrawRect.left;
-    dy = screen_center.y-DrawRect.bottom;
+    dx = screen_center.x-rc.left;
+    dy = screen_center.y-rc.bottom;
     maxsc = max(maxsc, isqrt4(dx*dx+dy*dy));
-    dx = screen_center.x-DrawRect.right;
-    dy = screen_center.y-DrawRect.bottom;
+    dx = screen_center.x-rc.right;
+    dy = screen_center.y-rc.bottom;
     maxsc = max(maxsc, isqrt4(dx*dx+dy*dy));
     
     for (int i=0; i<10; i++) {
@@ -65,26 +63,26 @@ rectObj MapWindow::CalculateScreenBounds(double scale) {
     int x, y;
     double X, Y;
     
-    x = DrawRect.left; 
-    y = DrawRect.top; 
+    x = rc.left; 
+    y = rc.top; 
     Screen2LatLon(x, y, X, Y);
     xmin = X; xmax = X;
     ymin = Y; ymax = Y;
 
-    x = DrawRect.right; 
-    y = DrawRect.top; 
+    x = rc.right; 
+    y = rc.top; 
     Screen2LatLon(x, y, X, Y);
     xmin = min(xmin, X); xmax = max(xmax, X);
     ymin = min(ymin, Y); ymax = max(ymax, Y);
   
-    x = DrawRect.right; 
-    y = DrawRect.bottom; 
+    x = rc.right; 
+    y = rc.bottom; 
     Screen2LatLon(x, y, X, Y);
     xmin = min(xmin, X); xmax = max(xmax, X);
     ymin = min(ymin, Y); ymax = max(ymax, Y);
   
-    x = DrawRect.left; 
-    y = DrawRect.bottom; 
+    x = rc.left; 
+    y = rc.bottom; 
     Screen2LatLon(x, y, X, Y);
     xmin = min(xmin, X); xmax = max(xmax, X);
     ymin = min(ymin, Y); ymax = max(ymax, Y);
@@ -138,6 +136,11 @@ void MapWindow::CalculateScreenPositionsThermalSources() {
 
 void MapWindow::CalculateScreenPositionsAirspace(const RECT& rcDraw)
 {
+#ifndef HAVE_HATCHED_BRUSH
+  // iAirspaceBrush is not used and don't exist if we don't have Hatched Brush
+  // this is workarround for compatibility with #CalculateScreenPositionsAirspace
+  constexpr int iAirspaceBrush[AIRSPACECLASSCOUNT] = {}; 
+#endif
   CAirspaceManager::Instance().CalculateScreenPositionsAirspace(screenbounds_latlon, iAirspaceMode, iAirspaceBrush, rcDraw, zoom.ResScaleOverDistanceModify());
 }
 
@@ -196,7 +199,7 @@ void MapWindow::CalculateScreenPositions(POINT Orig, RECT rc,
                 *Orig_Aircraft);
 
   // very important
-  screenbounds_latlon = CalculateScreenBounds(0.0);
+  screenbounds_latlon = CalculateScreenBounds(0.0, rc);
 
   // Old note obsoleted 121111: 
   // preserve this calculation for 0.0 until next round!
@@ -258,9 +261,7 @@ void MapWindow::CalculateScreenPositions(POINT Orig, RECT rc,
   if(TrailActive)
   {
     iSnailNext = SnailNext; 
-    #if LONGSNAIL
     iLongSnailNext = LongSnailNext; 
-    #endif
     // set this so that new data doesn't arrive between calculating
     // this and the screen updates
   }

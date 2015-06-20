@@ -35,6 +35,7 @@
 
 #ifdef USE_FREETYPE
 #include "Screen/FreeType/Init.hpp"
+#include "Screen/Init.hpp"
 #endif
 
 
@@ -125,42 +126,42 @@ void PreloadInitialisation(bool ask) {
 //
 BOOL InitInstance()
 {
-  InitLKScreen();
-  InitLKFonts(); // causing problems with CreateButtonLabels?
+  extern bool CommandResolution;
+  if(!IsEmbedded() && !CommandResolution) {
+      ScreenSizeX = 800;
+      ScreenSizeY = 480;
+  }
+
+#if defined(ENABLE_SDL) && defined(USE_FULLSCREEN)
+ #if (SDL_MAJOR_VERSION >= 2)
+  SDL_DisplayMode mode = {};
+  if(SDL_GetCurrentDisplayMode(0, &mode) == 0) {
+  	ScreenSizeX = mode.w;
+    ScreenSizeY = mode.h;
+  } else {
+  	fprintf(stderr, "SDL_GetCurrentDisplayMode() has failed: %s\n", ::SDL_GetError());
+  }
+  #else
+  	ScreenSizeX = 0;
+    ScreenSizeY = 0;
+  #endif
+#endif
+
   PreloadInitialisation(true);
 
   RECT WindowSize;
+
 #ifdef __linux__
-  WindowSize.left = 0;
-  WindowSize.top = 0;
-  WindowSize.right = SCREENWIDTH;
-  WindowSize.bottom = SCREENHEIGHT;
+  WindowSize=WindowResize(ScreenSizeX, ScreenSizeY);
 #endif
-
+#ifdef WIN32
 #ifdef UNDER_CE
-  WindowSize.left = 0;
-  WindowSize.top = 0;
-  WindowSize.right = GetSystemMetrics(SM_CXSCREEN);
-  WindowSize.bottom = GetSystemMetrics(SM_CYSCREEN);
+  WindowSize=WindowResize( GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+#else
+  WindowSize=WindowResize(ScreenSizeX, ScreenSizeY);
+#endif
 #endif
 
-#if (WINDOWSPC>0)
-  WindowSize.right = SCREENWIDTH + 2*GetSystemMetrics( SM_CXFIXEDFRAME);
-  WindowSize.left = (GetSystemMetrics(SM_CXSCREEN) - WindowSize.right) / 2;
-  WindowSize.right = WindowSize.right +WindowSize.left;
-  WindowSize.bottom = SCREENHEIGHT + 2*GetSystemMetrics( SM_CYFIXEDFRAME) + GetSystemMetrics(SM_CYCAPTION);
-  WindowSize.top = (GetSystemMetrics(SM_CYSCREEN) - WindowSize.bottom) / 2;
-  WindowSize.bottom = WindowSize.bottom +WindowSize.top;
-  /*
-  //
-  // Custom setup for positioning the window , ready to be used
-  //
-  WindowSize.top=768;	// top and left corner coords
-  WindowSize.left=1024;
-  WindowSize.right = SCREENWIDTH + 2*GetSystemMetrics( SM_CXFIXEDFRAME);
-  WindowSize.bottom = SCREENHEIGHT + 2*GetSystemMetrics( SM_CYFIXEDFRAME) + GetSystemMetrics(SM_CYCAPTION);
-  */
-#endif
 
   if (!goInstallSystem) Poco::Thread::sleep(50); // 091119
   #if TESTBENCH
@@ -170,8 +171,12 @@ BOOL InitInstance()
   if(!MainWindow.Create(WindowSize)) {
       return FALSE;
   }
-
-  RECT rc = MainWindow.GetClientRect();
+  const PixelRect rc(MainWindow.GetClientRect());
+  ScreenSizeX = rc.GetSize().cx;
+  ScreenSizeY = rc.GetSize().cy;
+  
+  InitLKScreen();
+  InitLKFonts(); // causing problems with CreateButtonLabels?
 
   LKLoadFixedBitmaps();
   LKLoadProfileBitmaps();
@@ -181,9 +186,9 @@ BOOL InitInstance()
   ButtonLabel::CreateButtonLabels(rc);
   ButtonLabel::SetLabelText(0,TEXT("MODE"));
 
-  extern void InitialiseFonts(RECT rc);
-  InitialiseFonts(rc);
-  InitLKFonts();	// reload updating LK fonts after loading profile for fontquality
+  extern void InitLKFonts();
+  // reload updating LK fonts after loading profile for fontquality
+  InitLKFonts();	
 
   ButtonLabel::SetFont(MapWindowBoldFont);
 
@@ -191,11 +196,6 @@ BOOL InitInstance()
 
   MainWindow.SetVisible(true);
 
-  // Since MapWindow is doing static inits, we want them to be recalculated at the end of
-  // initializations, since some values in use might have been not available yet, for example BottomSize.
-  // maybe it's useless, already done by MainWindow::OnSize()
-  MainWindow.UpdateActiveScreenZone(rc.right - rc.left, rc.bottom - rc.top);
-   
   return TRUE;
 }
 

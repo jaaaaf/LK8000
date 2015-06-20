@@ -11,6 +11,8 @@
 #include "Modeltype.h"
 #include "LKProfiles.h"
 #include "utils/stringext.h"
+#include "Asset.hpp"
+#include "Screen/Init.hpp"
 
 // #define DEBUGPROF	1
 void LKParseProfileString(const char *sname, const char *svalue);
@@ -113,9 +115,7 @@ void SetProfileVariable(const char *curname, const char *curvalue, const char *l
 
 int nMaxValueValueSize = MAX_PATH*2 + 6;	// max regkey name is 256 chars + " = "
 
-#if (WINDOWSPC>0)
 static bool isDefaultProfile=false; // needed to avoid screensize changes from custom profiles on PC
-#endif
 
 //
 // Returns true if at least one value was found,
@@ -127,14 +127,14 @@ bool LKProfileLoad(const TCHAR *szFile)
   StartupStore(_T("... LoadProfile <%s>%s"),szFile,NEWLINE);
   #endif
 
-  #if (WINDOWSPC>0)
-  if (_tcscmp(defaultProfileFile,szFile)==0) {
-     isDefaultProfile=true;
-  } else {
-     isDefaultProfile=false;
+  if(!IsEmbedded()) {
+    if (_tcscmp(defaultProfileFile,szFile)==0) {
+       isDefaultProfile=true;
+    } else {
+       isDefaultProfile=false;
+    }
   }
-  #endif
-
+  
   bool found = false;
   FILE *fp=NULL;
   int j;
@@ -395,11 +395,20 @@ void LKParseProfileString(const char *sname, const char *svalue) {
   PREAD(sname,svalue,szRegistryFinalGlideTerrain,&FinalGlideTerrain);
   PREAD(sname,svalue,szRegistryFinishLine,&FinishLine);
   PREAD(sname,svalue,szRegistryFinishMinHeight,&FinishMinHeight);
-  if (matchedstring) return;
   PREAD(sname,svalue,szRegistryFinishRadius,&FinishRadius);
-  PREAD(sname,svalue,szRegistryFontMapLabelFont,&*FontDesc_MapLabel, array_size(FontDesc_MapLabel));
-  PREAD(sname,svalue,szRegistryFontMapWindowFont,&*FontDesc_MapWindow, array_size(FontDesc_MapWindow));
   PREAD(sname,svalue,szRegistryFontRenderer,&FontRenderer);
+  if (matchedstring) return;
+
+  PREAD(sname,svalue,szRegistryFontMapWaypoint,&FontMapWaypoint);
+  PREAD(sname,svalue,szRegistryFontMapTopology,&FontMapTopology);
+  PREAD(sname,svalue,szRegistryFontInfopage1L,&FontInfopage1L);
+  PREAD(sname,svalue,szRegistryFontInfopage2L,&FontInfopage2L);
+  PREAD(sname,svalue,szRegistryFontBottomBar,&FontBottomBar);
+  PREAD(sname,svalue,szRegistryFontCustom1,&FontCustom1);
+  PREAD(sname,svalue,szRegistryFontOverlayBig,&FontOverlayBig);
+  PREAD(sname,svalue,szRegistryFontOverlayMedium,&FontOverlayMedium);
+  if (matchedstring) return;
+
   PREAD(sname,svalue,szRegistryGlideBarMode,&GlideBarMode);
   PREAD(sname,svalue,szRegistryGliderScreenPosition,&MapWindow::GliderScreenPosition);
   PREAD(sname,svalue,szRegistryGpsAltitudeOffset,&GPSAltitudeOffset);
@@ -469,6 +478,7 @@ void LKParseProfileString(const char *sname, const char *svalue) {
   PREAD(sname,svalue,szRegistryOutlinedTp,&OutlinedTp_Config);
   PREAD(sname,svalue,szRegistryOverColor,&OverColor);
   PREAD(sname,svalue,szRegistryOverlayClock,&OverlayClock);
+  PREAD(sname,svalue,szRegistryUseTwoLines,&UseTwoLines);
   PREAD(sname,svalue,szRegistryOverlaySize,&OverlaySize);
   PREAD(sname,svalue,szRegistryPGAutoZoomThreshold,&PGAutoZoomThreshold);
   PREAD(sname,svalue,szRegistryPGClimbZoom,&PGClimbZoom);
@@ -545,6 +555,8 @@ void LKParseProfileString(const char *sname, const char *svalue) {
 
   PREAD(sname,svalue,szRegistrySectorRadius,&SectorRadius);
   PREAD(sname,svalue,szRegistrySetSystemTimeFromGPS,&SetSystemTimeFromGPS);
+  PREAD(sname,svalue,szRegistrySaveRuntime,&SaveRuntime);
+  if (matchedstring) return;
   PREAD(sname,svalue,szRegistryShading,&Shading_Config);
   PREAD(sname,svalue,szRegistrySnailTrail,&TrailActive_Config);
   if (matchedstring) return;
@@ -581,8 +593,9 @@ void LKParseProfileString(const char *sname, const char *svalue) {
 	return;
   }
 
-  PREAD(sname,svalue,szRegistryUseCustomFonts,&UseCustomFonts);
   PREAD(sname,svalue,szRegistryUseGeoidSeparation,&UseGeoidSeparation);
+  PREAD(sname,svalue,szRegistryUseExtSound1,&UseExtSound1);
+  PREAD(sname,svalue,szRegistryUseExtSound2,&UseExtSound2);
   PREAD(sname,svalue,szRegistryUseUngestures,&UseUngestures);
   PREAD(sname,svalue,szRegistryUseTotalEnergy,&UseTotalEnergy_Config);
   if (matchedstring) return;
@@ -605,8 +618,10 @@ void LKParseProfileString(const char *sname, const char *svalue) {
 	if (matchedstring) return;
 	PREAD(sname,svalue,szRegistryColour[i],&MapWindow::iAirspaceColour[i]);
 	if (matchedstring) return;
+#ifdef HAVE_HATCHED_BRUSH
 	PREAD(sname,svalue,szRegistryBrush[i],&MapWindow::iAirspaceBrush[i]);
 	if (matchedstring) return;
+#endif
   }
 
   PREAD(sname, svalue, szRegistryUseWindRose, &UseWindRose);
@@ -734,31 +749,26 @@ void LKParseProfileString(const char *sname, const char *svalue) {
   PREAD(sname,svalue,szRegistrySonarWarning,&SonarWarning_Config);
   if (matchedstring) return;
 
-
-#if (WINDOWSPC>0)
-
-  extern bool CommandResolution;
-  // Do NOT load resolution from profile, if we have requested a resolution from command line
-  // And also, we can only load saved screen parameters from the default profile!
-  // It does not work from custom profiles.
-  if (!CommandResolution && isDefaultProfile) {
-      PREAD(sname,svalue,szRegistryScreenSize, &ScreenSize);
-      if (matchedstring) return;
-      PREAD(sname,svalue,szRegistryScreenSizeX, &ScreenSizeX);
-      if (matchedstring) {
-          SCREENWIDTH = ScreenSizeX;
-          return;
-      }
-      PREAD(sname,svalue,szRegistryScreenSizeY, &ScreenSizeY);
-      if (matchedstring) {
-          SCREENHEIGHT = ScreenSizeY;
-          // Do this here, because we save first ScreenSizeX and this is last parameter
-          extern bool InitLKScreen(void);
-          InitLKScreen();
-          return;
-      }
+  #if SAVESCREEN
+  if(!IsEmbedded()) {
+    extern bool CommandResolution;
+    // Do NOT load resolution from profile, if we have requested a resolution from command line
+    // And also, we can only load saved screen parameters from the default profile!
+    // It does not work from custom profiles.
+    if (!CommandResolution && isDefaultProfile) {
+        PREAD(sname,svalue,szRegistryScreenSize, &ScreenSize);
+        if (matchedstring) return;
+        PREAD(sname,svalue,szRegistryScreenSizeX, &ScreenSizeX);
+        if (matchedstring) {
+            return;
+        }
+        PREAD(sname,svalue,szRegistryScreenSizeY, &ScreenSizeY);
+        if (matchedstring) {
+            return;
+        }
+    }
   }
-#endif
+  #endif
 
   #if TESTBENCH
   if (!strcmp(sname,"LKVERSION") && !strcmp(sname,"PROFILEVERSION")) {

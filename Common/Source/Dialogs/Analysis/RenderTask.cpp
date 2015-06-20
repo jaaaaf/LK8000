@@ -7,7 +7,7 @@
 */
 
 #include "externs.h"
-
+#include "LKObjects.h"
 
 
 void Statistics::RenderTask(LKSurface& Surface, const RECT& rc, const bool olcmode)
@@ -165,7 +165,7 @@ double fXY_Scale = 1.5;
 #ifdef HAVE_HATCHED_BRUSH 
 		  Surface.SelectObject(MapWindow::GetAirspaceBrushByClass(AATASK));
 #else
-#warning "TODO : maybe we need solid brush or that !"
+                  Surface.SelectObject(LKBrush_Yellow);
 #endif
 		  Surface.SelectObject(LK_WHITE_PEN);
 		  if (Task[i].AATType == SECTOR)
@@ -205,8 +205,13 @@ double fXY_Scale = 1.5;
 	//	DrawLine(hdc, rc, x1, y1, x2, y2, STYLE_DASHGREEN);
 		if( ValidTaskPoint(4) && i <2)
 			goto skip_FAI;
+#ifndef UNDITHER
 		RenderFAISector ( Surface, rc, lat1, lon1, lat2, lon2, lat_c, lon_c,1, RGB_LIGHTYELLOW );
 	    RenderFAISector ( Surface, rc, lat1, lon1, lat2, lon2, lat_c, lon_c,0, RGB_LIGHTCYAN   );
+#else
+		RenderFAISector ( Surface, rc, lat1, lon1, lat2, lon2, lat_c, lon_c,1, RGB_LIGHTGREY );
+	    RenderFAISector ( Surface, rc, lat1, lon1, lat2, lon2, lat_c, lon_c,0, RGB_GREY   );
+#endif
 	    skip_FAI:
 		DrawLine(Surface, rc, x1, y1, x2, y2, STYLE_DASHGREEN);
 		Surface.Segment((long)((x2-x_min)*xscale+rc.left+BORDER_X),(long)((y_max-y2)*yscale+rc.top),(long)(aatradius[i]*yscale),rc,	Task[i].AATStartRadial,	Task[i].AATFinishRadial);
@@ -219,8 +224,13 @@ double fXY_Scale = 1.5;
 	  lon1 = WayPointList[Task[3].Index].Longitude;
 	  lat2 = WayPointList[Task[1].Index].Latitude;
 	  lon2 = WayPointList[Task[1].Index].Longitude;
+          #ifndef UNDITHER
 	  RenderFAISector ( Surface, rc, lat1, lon1, lat2, lon2, lat_c, lon_c,1, RGB_LIGHTYELLOW );
 	  RenderFAISector ( Surface, rc, lat1, lon1, lat2, lon2, lat_c, lon_c,0, RGB_LIGHTCYAN   );
+          #else
+	  RenderFAISector ( Surface, rc, lat1, lon1, lat2, lon2, lat_c, lon_c,1, RGB_LIGHTGREY );
+	  RenderFAISector ( Surface, rc, lat1, lon1, lat2, lon2, lat_c, lon_c,0, RGB_GREY   );
+          #endif
 	}
   }
 	// draw task lines and label
@@ -245,7 +255,9 @@ double fXY_Scale = 1.5;
 		y2 = (lat2-lat_c);
 
 		DrawLine(Surface, rc, x1, y1, x2, y2, STYLE_BLUETHIN);
+                #if (WINDOWSPC>0)
 	    Surface.SetBackgroundOpaque();
+                #endif
 		TCHAR text[100];
 		 Surface.SetTextColor(RGB_BLUE);
 /*

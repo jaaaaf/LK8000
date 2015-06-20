@@ -12,7 +12,7 @@
 #include "dlgTools.h"
 #include "WindowControls.h"
 #include "utils/fileext.h"
-
+#include "Event/Event.h"
 
 #define MAXNOTETITLE 200	// max number of characters in a title note
 #define MAXNOTEDETAILS 5000	// max size of each note details
@@ -131,6 +131,7 @@ static void OnPaintDetailsListItem(WindowControl * Sender, LKSurface& Surface){
       nlen--;
     }
     if (nlen>0) {
+      Surface.SetTextColor(RGB_BLACK);
       Surface.DrawText(2*ScreenScale, 2*ScreenScale, text+nstart, nlen);
     }
   }
@@ -165,12 +166,12 @@ static bool FormKeyDown(Window* pWnd, unsigned KeyCode) {
     Window * pBtn = NULL;
 
     switch (KeyCode & 0xffff) {
-        case VK_LEFT:
+        case KEY_LEFT:
         case '6':
             pBtn = wf->FindByName(TEXT("cmdPrev"));
             NextPage(-1);
             break;
-        case VK_RIGHT:
+        case KEY_RIGHT:
         case '7':
             pBtn = wf->FindByName(TEXT("cmdNext"));
             NextPage(+1);
@@ -258,6 +259,7 @@ static void AddChecklistLine(const TCHAR* TempString, TCHAR* Details, TCHAR* Nam
 } // AddChecklistLine
 
 
+#ifndef __linux__
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 /// Reads checklist from file encoded in system code page.
 ///
@@ -284,7 +286,8 @@ static bool LoadAsciiChecklist(const TCHAR* fileName) {
   Name[0]= 0;
   TempString[0]=0;
 
-  while (ReadStringX(stream, MAXNOTETITLE, TempString)) {
+  charset cs = charset::unknown;  
+  while (ReadStringX(stream, MAXNOTETITLE, TempString, cs)) {
     size_t len = _tcslen(TempString);
     if (len > 0) {
       if (TempString[len - 1] == '\r') {
@@ -311,7 +314,7 @@ static bool LoadAsciiChecklist(const TCHAR* fileName) {
   
   return(true);
 } // LoadAsciiChecklist 
-
+#endif
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 /// Reads checklist from file encoded in UTF-8.
@@ -367,7 +370,11 @@ bool LoadChecklist(short checklistmode) {
 		_tcscat(filename,_T(DIRSEP));
 		_tcscat(filename,_T(LKF_CHECKLIST));
 		_stprintf(NoteModeTitle,_T("%s"),gettext(_T("_@M878_")));  // notepad
-    return LoadAsciiChecklist(filename);
+		#ifdef __linux__
+   		return LoadUtfChecklist(filename);
+		#else
+                return LoadAsciiChecklist(filename);
+		#endif
 	// logbook TXT
 	case 1:
 		LocalPath(filename, TEXT(LKD_LOGS));
@@ -382,6 +389,17 @@ bool LoadChecklist(short checklistmode) {
 		_tcscat(filename,_T(LKF_LOGBOOKLST));
 		_stprintf(NoteModeTitle,_T("%s"),gettext(_T("_@M1748_")));  // logbook
 		return LoadUtfChecklist(filename);
+		break;
+	case 3:
+		SystemPath(filename, TEXT(LKD_SYSTEM));
+		_tcscat(filename,_T(DIRSEP));
+		_tcscat(filename,_T(LKF_CREDITS));
+		_stprintf(NoteModeTitle,_T("%s"),gettext(_T("Credits")));
+		#ifdef __linux__
+   		return LoadUtfChecklist(filename);
+		#else
+                return LoadAsciiChecklist(filename);
+		#endif
 		break;
   default:
     StartupStore(_T("... Invalid checklist mode (%d)%s"),checklistmode,NEWLINE);

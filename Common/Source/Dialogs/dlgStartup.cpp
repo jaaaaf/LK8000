@@ -14,7 +14,9 @@
 #include "LKProfiles.h"
 #include "Dialogs.h"
 #include "dlgTools.h"
-
+#include "OS/Memory.h"
+#include "Sound/Sound.h"
+#include "ScreenGeometry.h"
 
 extern void Shutdown(void);
 extern void LoadSplash(LKSurface& Surface,const TCHAR *splashfile);
@@ -86,46 +88,69 @@ static void OnSplashPaint(WindowControl * Sender, LKSurface& Surface){
 	TCHAR mes[100];
 	int pos=0;
 	switch (ScreenSize) {
-		case ss800x480:
-			pos=12;
-			break;
-		case ss400x240:
-			pos=12;
-			break;
 		case ss480x272:
 			if (ScreenSizeX==854)
 				pos=14;
 			else
+				#ifdef __linux__
+				pos=12;
+				#else
 				pos=11;
-			break;
-		case ss640x480:
-			pos=12;
-			break;
-		case ss320x240:
-			pos=12;
-			break;
-		case ss896x672:
-			pos=14;
+				#endif
 			break;
 		// --------- portrait -------------
 		case ss240x320:
+			#ifdef __linux__
+			pos=19;
+			#else
 			pos=17;
-			break;
-		case ss480x640:
-			pos=17;
-			break;
-		case ss272x480:
-			pos=18;
-			break;
-		case ss240x400:
-			pos=16;
-			break;
-		case ss480x800:
-			pos=18;
+			#endif
 			break;
 		default:
-			pos=11;
-			break;
+                    // customized definition
+                    if (ScreenLandscape) {
+		        switch (ScreenGeometry) {
+			    case SCREEN_GEOMETRY_43:
+                                pos=12;
+		                 break;
+			    case SCREEN_GEOMETRY_53:
+                                pos=12;
+		                 break;
+			    case SCREEN_GEOMETRY_169:
+                                pos=11;
+				break;
+		            default:
+                                pos=11;
+		                break;
+                        }
+                     } else {
+                        // Portrait
+                        // try to get a rule for text position...
+		        switch (ScreenGeometry) {
+			    case SCREEN_GEOMETRY_43:
+				#ifdef __linux__
+				pos=18;
+				#else
+				pos=17;
+				#endif
+		                break;
+			    case SCREEN_GEOMETRY_53:
+				pos=20;
+		                break;
+			    case SCREEN_GEOMETRY_169:
+				#ifdef __linux__
+				pos=22;
+				#else
+				pos=20;
+				#endif
+		                break;
+		            default:
+				pos=21;
+		                break;
+			}
+
+                    }
+                    break;
 	}
 	if (FullResetAsked) {
 		_stprintf(mes,_T("*** %s ***"),gettext(_T("_@M1757_")));
@@ -152,11 +177,11 @@ static void OnSplashPaint(WindowControl * Sender, LKSurface& Surface){
 #endif
 	RawWrite(Surface,mes,1,1, RGB_LIGHTGREY,WTMODE_NORMAL);
 
-	unsigned long freeram = CheckFreeRam()/1024;
+	size_t freeram = CheckFreeRam()/1024;
 	TCHAR buffer[MAX_PATH];
 	LocalPath(buffer);
-	unsigned long freestorage = FindFreeSpace(buffer);
-	_stprintf(mes,_T("free ram %.1ldM  storage %.1ldM"), freeram/1024,freestorage/1024);
+	size_t freestorage = FindFreeSpace(buffer);
+	_stprintf(mes,_T("free ram %.1zuM  storage %.1zuM"), freeram/1024,freestorage/1024);
 	RawWrite(Surface,mes,3,0, RGB_LIGHTGREY,WTMODE_NORMAL);
 
 	if ( ScreenSize != ss320x240 && ScreenLandscape )
@@ -279,12 +304,12 @@ short dlgStartupShowModal(void){
 
   // FLY SIM PROFILE EXIT
   if (RUN_MODE==RUN_WELCOME) {
-	if (!ScreenLandscape) {
+	if (ScreenLandscape) {
 		LocalPathS(filename, TEXT("dlgFlySim_L.xml"));
 		wf = dlgLoadFromXML(CallBackTable, filename, TEXT("IDR_XML_FLYSIM_L"));
 	} else {
-		LocalPathS(filename, TEXT("dlgFlySim.xml"));
-		wf = dlgLoadFromXML(CallBackTable, filename, TEXT("IDR_XML_FLYSIM"));
+		LocalPathS(filename, TEXT("dlgFlySim_P.xml"));
+		wf = dlgLoadFromXML(CallBackTable, filename, TEXT("IDR_XML_FLYSIM_P"));
 	}
 	if (!wf) {
 		return 0;
@@ -317,6 +342,7 @@ short dlgStartupShowModal(void){
 
   wSplash = (WndOwnerDrawFrame*)wf->FindByName(TEXT("frmSplash")); 
   wSplash->SetWidth(ScreenSizeX);
+//  wSplash->SetHeight(ScreenSizeY);// - IBLSCALE(55));
 
 
   int  PROFWIDTH=0, PROFACCEPTWIDTH=0, PROFHEIGHT=0, PROFSEPARATOR=0;
@@ -328,59 +354,38 @@ short dlgStartupShowModal(void){
 	((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetOnClickNotify(OnEXITClicked);
 	if (ScreenLandscape) {
 		
-		PROFWIDTH=(ScreenSizeX-IBLSCALE(320))/3; 
+	    unsigned int lx;
+	    unsigned int w;
+	    unsigned int SPACEBORDER;
+	    PROFWIDTH=(ScreenSizeX-IBLSCALE(320))/3; 
+	    SPACEBORDER=NIBLSCALE(2);
+	    w= ( ScreenSizeX - (SPACEBORDER*5) ) /4;
 
+            ((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetWidth(w);
+            ((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetWidth(w);
+            ((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetWidth(w);
+            ((WndButton *)wf->FindByName(TEXT("cmdFLY"))) ->SetWidth(w);
 
-		switch(ScreenSize) {
-			case ss800x480:
-			case ss400x240:
-				((WndButton *)wf->FindByName(TEXT("cmdFLY"))) ->SetWidth(IBLSCALE(110));
-				((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetWidth(IBLSCALE(110));
-				((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetLeft(IBLSCALE(208)+PROFWIDTH*3);
-				((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetLeft(IBLSCALE(88)+PROFWIDTH);
-				((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetWidth(IBLSCALE(92)+PROFWIDTH/6);
-				((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetLeft(IBLSCALE(161)+PROFWIDTH*2);
-				((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetWidth(IBLSCALE(65)+PROFWIDTH/5);
-				break;
-			case ss480x272:
-				((WndButton *)wf->FindByName(TEXT("cmdFLY"))) ->SetWidth(IBLSCALE(117));
-				((WndButton *)wf->FindByName(TEXT("cmdFLY"))) ->SetHeight(IBLSCALE(38));
-				((WndButton *)wf->FindByName(TEXT("cmdFLY"))) ->SetTop(IBLSCALE(197));
-				((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetWidth(IBLSCALE(117));
-				((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetLeft(IBLSCALE(201)+PROFWIDTH*3);
-				((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetHeight(IBLSCALE(38));
-				((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetTop(IBLSCALE(197));
-				((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetLeft(IBLSCALE(88)+PROFWIDTH);
-				((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetWidth(IBLSCALE(99)+PROFWIDTH/6);
-				((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetHeight(IBLSCALE(38));
-				((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetTop(IBLSCALE(197));
-				((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetLeft(IBLSCALE(161)+PROFWIDTH*2);
-				((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetWidth(IBLSCALE(65)+PROFWIDTH/5);
-				((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetHeight(IBLSCALE(38));
-				((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetTop(IBLSCALE(197));
-				break;
-			case ss640x480:
-			case ss320x240:
-				((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetLeft(IBLSCALE(93)+PROFWIDTH);
-				((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetWidth(IBLSCALE(73)+PROFWIDTH/6);
-				((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetLeft(IBLSCALE(166)+PROFWIDTH*2);
-				((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetWidth(IBLSCALE(60)+PROFWIDTH/5);
-				((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetLeft(IBLSCALE(228)+PROFWIDTH*3);
-				((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetWidth(IBLSCALE(88));
-				break;
-			default:
-				((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetLeft(IBLSCALE(93)+PROFWIDTH);
-				((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetWidth(IBLSCALE(73)+PROFWIDTH/6);
-				((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetLeft(IBLSCALE(166)+PROFWIDTH*2);
-				((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetWidth(IBLSCALE(60)+PROFWIDTH/5);
-				((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetLeft(IBLSCALE(228)+PROFWIDTH*3);
-				break;
-		}	
+            lx=SPACEBORDER-1; // count from 0
+            ((WndButton *)wf->FindByName(TEXT("cmdFLY"))) ->SetLeft(lx);
+            lx+=w+SPACEBORDER;
+            ((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetLeft(lx);
+            lx+=w+SPACEBORDER;
+            ((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetLeft(lx);
+            lx+=w+SPACEBORDER;
+            ((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetLeft(lx);
+
 	} else {
 		PROFWIDTH=IBLSCALE(236);
 		PROFACCEPTWIDTH=NIBLSCALE(45);
 		PROFHEIGHT=NIBLSCALE(25);
 		PROFSEPARATOR=NIBLSCALE(2);
+            int h=  ScreenSizeY - IBLSCALE(90); // 40+5+40+5
+            ((WndButton *)wf->FindByName(TEXT("cmdDUALPROFILE"))) ->SetTop(h);
+            ((WndButton *)wf->FindByName(TEXT("cmdEXIT"))) ->SetTop(h);
+            ((WndButton *)wf->FindByName(TEXT("cmdSIM"))) ->SetTop(h + IBLSCALE(45));
+            ((WndButton *)wf->FindByName(TEXT("cmdFLY"))) ->SetTop(h + IBLSCALE(45));
+
 	}
   }
 
@@ -447,6 +452,13 @@ short dlgStartupShowModal(void){
 		PROFACCEPTWIDTH=NIBLSCALE(45);
 		PROFHEIGHT=NIBLSCALE(25);
 		PROFSEPARATOR=NIBLSCALE(2);
+
+            int h=  ScreenSizeY - IBLSCALE(90); // 40+5+40+5
+            ((WndButton *)wf->FindByName(TEXT("cmdAIRCRAFT"))) ->SetTop(h);
+            ((WndButton *)wf->FindByName(TEXT("cmdPROFILE"))) ->SetTop(h);
+            ((WndButton *)wf->FindByName(TEXT("cmdDEVICE"))) ->SetTop(h + IBLSCALE(45));
+            ((WndButton *)wf->FindByName(TEXT("cmdPILOT"))) ->SetTop(h + IBLSCALE(45));
+            ((WndButton *)wf->FindByName(TEXT("cmdCLOSE"))) ->SetTop(h + IBLSCALE(45));
 	}
   }
 
@@ -470,6 +482,12 @@ short dlgStartupShowModal(void){
 		PROFSEPARATOR=NIBLSCALE(2);
 		((WndButton *)wf->FindByName(TEXT("cmdClose"))) ->SetWidth(ScreenSizeX-NIBLSCALE(6));
 		((WndButton *)wf->FindByName(TEXT("cmdClose"))) -> SetLeft(NIBLSCALE(2));
+
+            int h=  ScreenSizeY - IBLSCALE(65); // 
+            ((WndButton *)wf->FindByName(TEXT("cmdClose"))) ->SetTop(h);
+            wp = ((WndProperty *)wf->FindByName(TEXT("prpProfile")));
+            ((WndProperty *)wp->FindByName(TEXT("prpProfile"))) ->SetTop(h + IBLSCALE(35));
+
 	}
   }
 
@@ -538,7 +556,7 @@ short dlgStartupShowModal(void){
 	TCHAR mydir[MAX_PATH];
 	TCHAR mes[MAX_PATH];
 
-	LocalPath(mydir,_T(LKD_SYSTEM));
+	SystemPath(mydir,_T(LKD_SYSTEM));
 	_stprintf(mes,_T("%s"),mydir);
 	MessageBoxX(_T("NO SYSTEM DIRECTORY\nCheck Installation!"), _T("FATAL ERROR 001"), mbOk);
 	MessageBoxX(mes, _T("NO SYSTEM DIRECTORY"), mbOk, true);
@@ -576,7 +594,7 @@ short dlgStartupShowModal(void){
 	TCHAR mydir[MAX_PATH];
 	TCHAR mes[MAX_PATH];
 	StartupStore(_T("... CHECK SYSTEM DEFAULT_MENU.TXT FAILED!%s"),NEWLINE);
-	LocalPath(mydir,_T(LKD_SYSTEM));
+	SystemPath(mydir,_T(LKD_SYSTEM));
 	_stprintf(mes,_T("%s/DEFAULT_MENU.TXT"),mydir);
 	MessageBoxX(_T("DEFAULT_MENU.TXT MISSING in SYSTEM\nCheck System Install"), _T("FATAL ERROR 022"), mbOk);
 	MessageBoxX(mes, _T("MISSING FILE!"), mbOk, true);
@@ -589,7 +607,7 @@ short dlgStartupShowModal(void){
 	TCHAR mydir[MAX_PATH];
 	TCHAR mes[MAX_PATH];
 	StartupStore(_T("... CHECK SYSTEM _BITMAPSH FAILED!%s"),NEWLINE);
-	LocalPath(mydir,_T(LKD_BITMAPS));
+	SystemPath(mydir,_T(LKD_BITMAPS));
 	_stprintf(mes,_T("%s/_BITMAPSH"),mydir);
 	MessageBoxX(_T("_BITMAPSH MISSING in SYSTEM Bitmaps\nCheck System Install"), _T("FATAL ERROR 032"), mbOk);
 	MessageBoxX(mes, _T("MISSING FILE!"), mbOk, true);
@@ -656,6 +674,8 @@ short dlgStartupShowModal(void){
 					StartupStore(_T("... Selected new profile, preloading..\n"));
 					#endif
 					LKProfileLoad(startProfileFile);
+					extern void InitLKFonts();
+					InitLKFonts();
 					FullResetAsked=false;
 				}
 			}
@@ -697,6 +717,9 @@ short dlgStartupShowModal(void){
 	RUN_MODE=RUN_DUALPROF;
   }
   if (RUN_MODE==RUN_EXIT) {
+        #if __linux__
+	RUN_MODE=RUN_WELCOME;
+        #endif
 	LKSound(_T("LK_SLIDE.WAV"));
 	if (MessageBoxX(
 	// LKTOKEN  _@M198_ = "Confirm Exit?" 

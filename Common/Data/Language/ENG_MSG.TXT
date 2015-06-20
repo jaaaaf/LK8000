@@ -1,5 +1,5 @@
 ﻿# LK8000 ENGLISH MESSAGES - ENG_MSG.TXT
-# MASTER UPDATED:  140413
+# MASTER UPDATED:  150527
 #
 # This file is loaded on startup and all messages are stored internally.
 # If you are translating these messages, try to respect sizes.
@@ -1882,6 +1882,17 @@ _@M1860_ "HSI"
 
 _@M1870_ "Airspace Sonar "
 
+# Menu 12 font edit
+_@M1880_ "Map waypoints "
+_@M1881_ "Map topology "
+_@M1882_ "Info pages "
+_@M1883_ "Bottom bar "
+_@M1884_ "Overlay type "
+_@M1885_ "Info on 2 lines "
+_@M1886_ "Overlay target "
+_@M1887_ "Overlay values "
+
+
 ############################################################
 #                  - MENU MESSAGES - 
 #
@@ -2085,6 +2096,9 @@ _@M2182_ "«"
 _@M2183_ "»"
 _@M2184_ "‹"
 _@M2185_ "›"
+_@M2186_ "*"
+_@M2187_ "Speed Opt."
+_@M2188_ "Thermal Min"
 
 # New CustomKey labels for Custom Menu
 _@M2200_ "----"
@@ -2140,6 +2154,8 @@ _@M2248_  "No Near Object found!"
 # DO NOT TRANSLATE 2249
 _@M2249_  "DspMode"
 
+_@M2250_ "Ext. Sound"
+
 # MAX 2500! 
 # (Reserved for custom menus up to 2300!)
 # Note for developers: remember LKLanguage MAX_MESSAGE limit (2500)
@@ -2151,3 +2167,5 @@ _@M2302_  "T"
 # F = Finish point
 _@M2303_  "F" 
 _@M2304_  "GEAR WARNING DISABLED NOW!" 
+_@M2305_  "Save runtime"
+

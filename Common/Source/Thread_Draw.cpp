@@ -12,6 +12,7 @@
 #include "Bitmaps.h"
 #include "RGB.h"
 #include "TraceThread.h"
+#include "Hardware/CPU.hpp"
 
 #ifndef USE_GDI
 #include "Screen/Canvas.hpp"
@@ -23,6 +24,22 @@ BOOL MapWindow::THREADEXIT = FALSE;
 BOOL MapWindow::Initialised = FALSE;
 
 Poco::FastMutex MapWindow::Surface_Mutex;
+
+// #define TESTMAPRECT 1
+// Although we are capable of autoresizing, all fonts are tuned for the original screen geometry.
+// It is unlikely that we shall do sliding windows by changing MapRect like we do here, because
+// this would mean to force a ChangeScreen everytime.
+// It is although possible to use only a portion of the screen and leave the rest for example for
+// a realtime vario, or for menu buttons, or for text. In such cases, we can assume that the reserved
+// portion of screen will be limited to a -say- NIBLSCALE(25) and geometry will not change much.
+// Reducing MapRect like we do in the test is not useful, only for checking if we have pending problems.
+//
+#ifdef TESTMAPRECT
+#define TM_T 45
+#define TM_B 45
+#define TM_L 30
+#define TM_R 20
+#endif
 
 extern bool PanRefreshed;
 bool ForceRenderMap=true;
@@ -37,6 +54,9 @@ void MapWindow::DrawThread ()
   StartupStore(_T("##############  DRAW threadid=%d\n"),GetCurrentThreadId());
   #endif
 
+  #if TESTBENCH
+  StartupStore(_T("... DrawThread START%s"),NEWLINE);
+  #endif
 
   // THREADRUNNING = FALSE;
   THREADEXIT = FALSE;
@@ -45,23 +65,33 @@ void MapWindow::DrawThread ()
   ResetLabelDeclutter();
 
   MapRect = MainWindow.GetClientRect();
+  #ifdef TESTMAPRECT
+  MapRect.top+=TM_T;
+  MapRect.left+=TM_L;
+  MapRect.right-=TM_R;
+  MapRect.bottom-=TM_B;
+  #endif
   // Default draw area is full screen, no opacity
   DrawRect=MapRect;
+  UpdateActiveScreenZone(MapRect);
 
   UpdateTimeStats(true);
 
+  { // // Begin Critical section
+    Poco::FastMutex::ScopedLock Lock(Surface_Mutex);
+
+    DrawSurface.SetBackgroundTransparent();
+    hdcMask.SetBackgroundOpaque();
+
+    // paint draw window black to start
+    DrawSurface.SelectObject(LK_BLACK_PEN);
+    DrawSurface.Rectangle(MapRect.left,MapRect.top, MapRect.right,MapRect.bottom);
+
+    BackBufferSurface.Copy(MapRect.left, MapRect.top, MapRect.right-MapRect.left,
+           MapRect.bottom-MapRect.top, 
+           DrawSurface, MapRect.left, MapRect.top);
+  } // End Critical section
   
-  hdcDrawWindow.SetBackgroundTransparent();
-  hdcMask.SetBackgroundOpaque();
-
-  // paint draw window black to start
-  hdcDrawWindow.SelectObject(LK_BLACK_PEN);
-  hdcDrawWindow.Rectangle(MapRect.left,MapRect.top, MapRect.right,MapRect.bottom);
-
-  ScreenSurface.Copy(0, 0, MapRect.right-MapRect.left,
-         MapRect.bottom-MapRect.top, 
-         hdcDrawWindow, 0, 0);
-
   // This is just here to give fully rendered start screen
   UpdateInfo(&GPS_INFO, &CALCULATED_INFO);
   MapDirty = true;
@@ -87,6 +117,11 @@ void MapWindow::DrawThread ()
 		Poco::Thread::sleep(50);
 		continue;
 	}
+    
+#ifdef HAVE_CPU_FREQUENCY
+    const ScopeLockCPU cpu;
+#endif
+  
     Poco::FastMutex::ScopedLock Lock(Surface_Mutex);
 	// This is also occuring on resolution change
 	if (LKSW_ReloadProfileBitmaps) {
@@ -95,7 +130,14 @@ void MapWindow::DrawThread ()
 		#endif
 		// This is needed to update resolution change
 		MapRect = MainWindow.GetClientRect();
+                #ifdef TESTMAPRECT
+                MapRect.top+=TM_T;
+                MapRect.left+=TM_L;
+                MapRect.right-=TM_R;
+                MapRect.bottom-=TM_B;
+                #endif
 		DrawRect=MapRect;
+                UpdateActiveScreenZone(MapRect);
 		FillScaleListForEngineeringUnits();
 		LKUnloadProfileBitmaps();
 		LKLoadProfileBitmaps();
@@ -148,18 +190,43 @@ void MapWindow::DrawThread ()
 			const int fromX=startScreen.x-targetScreen.x;
 			const int fromY=startScreen.y-targetScreen.y;
 
-			ScreenSurface.Whiteness(0, 0,MapRect.right-MapRect.left, MapRect.bottom-MapRect.top);
+			BackBufferSurface.Whiteness(MapRect.left, MapRect.top,MapRect.right-MapRect.left, MapRect.bottom-MapRect.top);
 
-			ScreenSurface.Copy(0, 0,
-				MapRect.right-MapRect.left,
-				MapRect.bottom-MapRect.top, 
-				hdcDrawWindow, 
-				fromX,fromY);
+                        RECT  clipSourceArea;
+                        POINT clipDestPoint;
+
+                        if (fromX<0) {
+                            clipSourceArea.left=MapRect.left;
+                            clipSourceArea.right=MapRect.right+fromX; // negative fromX
+                            clipDestPoint.x=MapRect.left-fromX;
+                        } else {
+                            clipSourceArea.left=MapRect.left+fromX;
+                            clipSourceArea.right=MapRect.right;
+                            clipDestPoint.x=MapRect.left;
+                        }
+
+                        if (fromY<0) {
+                            clipSourceArea.top=MapRect.top;
+                            clipSourceArea.bottom=MapRect.bottom+fromY; // negative fromX
+                            clipDestPoint.y=MapRect.top-fromY;
+                        } else {
+                            clipSourceArea.top=MapRect.top+fromY;
+                            clipSourceArea.bottom=MapRect.bottom;
+                            clipDestPoint.y=MapRect.top;
+                        }
+
+
+                        BackBufferSurface.Copy(clipDestPoint.x,clipDestPoint.y,
+                            clipSourceArea.right-clipSourceArea.left,
+                            clipSourceArea.bottom-clipSourceArea.top,
+                            DrawSurface, 
+                            clipSourceArea.left,clipSourceArea.top);
+
 
 			POINT centerscreen;
 			centerscreen.x=ScreenSizeX/2; centerscreen.y=ScreenSizeY/2;
-			DrawMapScale(ScreenSurface,MapRect,false);
-			DrawCrossHairs(ScreenSurface, centerscreen, MapRect);
+			DrawMapScale(BackBufferSurface,MapRect,false);
+			DrawCrossHairs(BackBufferSurface, centerscreen, MapRect);
 			lastdrawwasbitblitted=true;
 		} else {
 			// THIS IS NOT GOING TO HAPPEN!
@@ -167,9 +234,11 @@ void MapWindow::DrawThread ()
 			// The map was not dirty, and we are not in fastpanning mode.
 			// FastRefresh!  We simply redraw old bitmap. 
 			//
-			ScreenSurface.Copy(0, 0, MapRect.right-MapRect.left,
+			BUGSTOP_LKASSERT(0);
+                       
+			BackBufferSurface.Copy(MapRect.left, MapRect.top, MapRect.right-MapRect.left,
 				MapRect.bottom-MapRect.top, 
-				hdcDrawWindow, 0, 0);
+				DrawSurface, MapRect.left, MapRect.top);
 
 			lastdrawwasbitblitted=true;
 		}
@@ -198,14 +267,14 @@ void MapWindow::DrawThread ()
 				lasthere=LKHearthBeats;
 				goto _dontbitblt;
 			}
-			ScreenSurface.Copy(0, 0, MapRect.right-MapRect.left,
+			BackBufferSurface.Copy(MapRect.left, MapRect.top, MapRect.right-MapRect.left,
 				MapRect.bottom-MapRect.top, 
-				hdcDrawWindow, 0, 0);
+				DrawSurface, MapRect.left, MapRect.top);
 
 			POINT centerscreen;
 			centerscreen.x=ScreenSizeX/2; centerscreen.y=ScreenSizeY/2;
-			DrawMapScale(ScreenSurface,MapRect,false);
-			DrawCrossHairs(ScreenSurface, centerscreen, MapRect);
+			DrawMapScale(BackBufferSurface,MapRect,false);
+			DrawCrossHairs(BackBufferSurface, centerscreen, MapRect);
             MainWindow.Redraw(MapRect);
 			continue;
 		} 
@@ -218,13 +287,13 @@ _dontbitblt:
 	lastdrawwasbitblitted=false;
 	MapWindow::UpdateInfo(&GPS_INFO, &CALCULATED_INFO);
 
-	RenderMapWindow(MapRect);
+	RenderMapWindow(DrawSurface, MapRect);
     
 	if (!ForceRenderMap && !first_run) {
-		ScreenSurface.Copy(0, 0,
+		BackBufferSurface.Copy(MapRect.left, MapRect.top,
 			MapRect.right-MapRect.left,
 			MapRect.bottom-MapRect.top, 
-			hdcDrawWindow, 0, 0);
+			DrawSurface, MapRect.left, MapRect.top);
 
 	}
 
@@ -233,9 +302,9 @@ _dontbitblt:
 	if (mode.AnyPan() && !mode.Is(Mode::MODE_TARGET_PAN) && !OnFastPanning) {
 		POINT centerscreen;
 		centerscreen.x=ScreenSizeX/2; centerscreen.y=ScreenSizeY/2;
-		DrawMapScale(ScreenSurface,MapRect,false);
-		DrawCompass(ScreenSurface, MapRect, DisplayAngle);
-		DrawCrossHairs(ScreenSurface, centerscreen, MapRect);
+		DrawMapScale(BackBufferSurface,MapRect,false);
+		DrawCompass(BackBufferSurface, MapRect, DisplayAngle);
+		DrawCrossHairs(BackBufferSurface, centerscreen, MapRect);
 	}
 
 	UpdateTimeStats(false);
@@ -307,7 +376,10 @@ void MapWindow::CloseDrawingThread(void)
   #if TESTBENCH
   StartupStore(_T("... CloseDrawingThread waitforsingleobject\n"));
   #endif
-  drawTriggerEvent.reset();
+  #ifdef __linux__
+  #else
+  drawTriggerEvent.reset(); // on linux this is delaying 5000
+  #endif
   MapWindowThread.join();
           
   #if TESTBENCH

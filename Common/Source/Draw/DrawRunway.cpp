@@ -10,18 +10,21 @@
 #include "LKStyle.h"
 #include "DoInits.h"
 #include "LKObjects.h"
-
-
-#if (WINDOWSPC>0)
-#include <wingdi.h>
-#endif
-
 #include <string.h>
+#include "ScreenGeometry.h"
 
+/**
+ * @brief Draw Runway on map
+ *
+ * @remarks THIS FUNCTION is threadsafe only if called by dialogs using picto bool true
+ * 
+ * @param Surface : Surface to Draw
+ * @param wp : Landable Waypoint 
+ * @param rc : Clipping Rect 
+ * @param fScaleFact : Scaling factor for runway symbol radius and runway length, use #MapWindow::zoom value for Moving Map or constant for waypoint Picto
+ * @param picto true for drawing Waypoint Picto ( don't draw radio info ) 
+ */
 
-//
-// THIS FUNCTION is threadsafe only if called by dialogs using picto bool true
-//
 void MapWindow::DrawRunway(LKSurface& Surface, const WAYPOINT* wp, const RECT& rc, double fScaleFact, BOOL picto)
 {
   int solid= false;
@@ -52,46 +55,79 @@ void MapWindow::DrawRunway(LKSurface& Surface, const WAYPOINT* wp, const RECT& r
 
   if (DoInit[MDI_MAPWPVECTORS])
   {
+    //
+    // How long and thick is the runway drawn, and how big is the circle.
+    // No rule possible, it depends on how we are dealing with many other
+    // custom things on screen, because LK is drawing differently depending
+    // on geometry, resolution, orientation. We dont split bits.
+    //
     switch(ScreenSize)
     {
-     case ss240x320: rwl = 9.0; rwb = 2.0;cir = 4.0; break;
-     case ss240x400: rwl = 9.0; rwb = 1.0;cir = 4.0; break;
-     case ss272x480: rwl = 9.0; rwb = 2.5;cir = 4.0; break;
-     case ss480x640: rwl = 6.0; rwb = 2.5;cir = 5.0; break;
-     case ss480x800: rwl = 6.0; rwb = 2.5;cir = 5.0; break;
-     case sslandscape: rwl = 6.0; rwb = 1.0;cir = 5.0; break;
-     case ss320x240: rwl = 9.0; rwb = 2.0;cir = 4.0; break;
-     case ss400x240: rwl = 9.0; rwb = 1.0;cir = 4.0; break;
-     case ss480x234: rwl = 9.0; rwb = 1.0;cir = 4.0; break;
-     case ss480x272: rwl = 9.0; rwb = 2.5;cir = 4.0; break;
-     case ss640x480: rwl = 6.0; rwb = 2.5;cir = 5.0; break;
-     case ss720x408: rwl = 6.0; rwb = 2.5;cir = 5.0; break;
-     case ss800x480: rwl = 6.0; rwb = 2.5;cir = 5.0; break;
-     case ss896x672: rwl = 6.0; rwb = 2.5;cir = 5.0; break;
+     case ss240x320: rwl = 9.0; rwb = 2.0;cir = 4.0; break; // 43
+     case ss240x400: rwl = 9.0; rwb = 1.0;cir = 4.0; break; // 53
+     case ss272x480: rwl = 9.0; rwb = 2.5;cir = 4.0; break; // 169
+     case ss480x640: rwl = 6.0; rwb = 2.5;cir = 5.0; break; // 43
+     case ss600x800: rwl = 6.0; rwb = 2.5;cir = 5.0; break; // 43
+     case ss480x800: rwl = 6.0; rwb = 2.5;cir = 5.0; break; // 53
+     case sslandscape: rwl = 6.0; rwb = 1.0;cir = 5.0; break; // sslandscape is never assigned!
+     case ss320x240: rwl = 9.0; rwb = 2.0;cir = 4.0; break; // 43
+     case ss400x240: rwl = 9.0; rwb = 1.0;cir = 4.0; break; // 53
+     case ss480x234: rwl = 9.0; rwb = 1.0;cir = 4.0; break; // 21
+     case ss480x272: rwl = 9.0; rwb = 2.5;cir = 4.0; break; // 169
+     case ss640x480: rwl = 6.0; rwb = 2.5;cir = 5.0; break; // 43
+     case ss800x600: rwl = 6.0; rwb = 2.5;cir = 5.0; break; // 43
+     case ss800x480: rwl = 6.0; rwb = 2.5;cir = 5.0; break; // 53
      case ssnone:
-	if (ScreenLandscape) {
-		rwl = 6.0; rwb=2.5; cir=4.0;
-	} else {
-		rwl = 9.0; rwb=2.5; cir=4.0;
-	}
-	break;
+
+         #define X ScreenSizeX==
+	 #define Y ScreenSizeY==
+         // Ok this doesnt look nice, but lets remember we are inside a DoInit.
+         // Generally the generic setup is good for everyone, but in case we 
+         // can make it custom for any resolution.
+         if (X 1024 && Y 768) {; rwl = 4.5; rwb = 2.5; cir = 5.0; } else
+         if (X 1014 && Y 758) {; rwl = 4.5; rwb = 2.5; cir = 5.0; } else
+         if (X 720 && Y 408) {; rwl = 10.0; rwb = 6.0; cir = 5.0; } else
+         if (X 720 && Y 432) {; rwl = 10.0; rwb = 4.0; cir = 5.0; } else
+
+         // .. and this is the rule of thumb, I could not find a better idea
+         // I think it is easier to redesign the drawing approach and make it
+         // really scalable. 
+         //
+         // This hack works for: 800x600 960x540 1280x720 (and relative portrait modes)
+         // These are the screen resolutions used by kobo, samsung s4 mini and s5 mini
+         // 
+         if (ScreenLandscape) {
+             if (ScreenSizeX<=480) {
+		 // testlk> Ok: t5     Bad for: -
+                 rwl = 9.0*(480.0/ScreenSizeX); rwb = 2.5*(480.0/ScreenSizeX); cir = 4.0;
+             } else {
+		 // testlk> Ok:  3,13,14,22    Bad: t4, t15, t23
+                 rwl = 6.0; rwb = 2.5; cir = 5.0;
+             }
+         } else {
+             if (ScreenSizeX<480) {
+		 // testlk> Ok: 10,19     Bad for: 20
+                 rwl = 6.0*(480.0/ScreenSizeX); rwb = 2.5*(480.0/ScreenSizeX); cir = 4.0;
+             } else {
+		 // testlk> Ok: 8,28     Bad for: -
+                 rwl = 6.0; rwb = 2.5; cir = 5.0;
+             }
+         }
+         break;
     }
 
-    // All values <=
+    // 
+    // These are the (absolute) scale thresholds for painting informations
+    // For example, paint just radio starting from 5.0km (3.6abs) etc.
+    // There is no rule possible, it matters only testing. 
+    //
     switch(ScreenSize)
     {
 
 	case ss480x272:
-		if (ScreenSizeX==854) {
-			scale_drawradio=3.6;
-			scale_bigfont=1.5;
-			scale_fullinfos=1.5;
-
-		} else {
-			scale_drawradio=2.6;
-			scale_bigfont=1.1;
-			scale_fullinfos=0.8;
-		}
+		scale_drawradio=2.6;
+		scale_bigfont=1.1;
+		scale_fullinfos=0.8;
 		break;
 	case ss800x480:
 		scale_drawradio=2.6;
@@ -105,11 +141,14 @@ void MapWindow::DrawRunway(LKSurface& Surface, const WAYPOINT* wp, const RECT& r
 		break;
 
 	default:
-		scale_drawradio=2.6;
-		scale_bigfont=1.5;
-		scale_fullinfos=1.5;
-		break;
+
+                scale_drawradio=3.6;
+                scale_bigfont=1.5;
+                scale_fullinfos=1.5;
+                break;
     }
+
+
     DoInit[MDI_MAPWPVECTORS]=false;
   }
 
@@ -117,8 +156,13 @@ void MapWindow::DrawRunway(LKSurface& Surface, const WAYPOINT* wp, const RECT& r
   {
     if (picto)
        l = (int) (rwl);
-    else 
-       l = (int) (rwl * (1.0+ ((double)wp->RunwayLen/800.0-1.0)/4.0));
+    else {
+       // We cant rescale runways , no method found.
+       if (ScreenSize==ssnone)
+           l = (int) (rwl * (1.0+ (680.0/800.0-1.0)/4.0)); // wtf..!
+       else
+           l = (int) (rwl * (1.0+ ((double)wp->RunwayLen/800.0-1.0)/4.0));
+    }
 
     b = (int) (rwb/1.5 );
   } else
@@ -170,10 +214,17 @@ void MapWindow::DrawRunway(LKSurface& Surface, const WAYPOINT* wp, const RECT& r
 	};
 	if(!bOutland)
 	{
+            #ifndef UNDITHER
 	    if(solid)
 	  	  Surface.SelectObject(LKBrush_DarkGrey );
 	    else
 		  Surface.SelectObject(LKBrush_White);
+            #else
+	    if(solid)
+	  	  Surface.SelectObject(LKBrush_Black);
+	    else
+		  Surface.SelectObject(LKBrush_White);
+            #endif
 	}
 	if(picto) {
 	  threadsafePolygonRotateShift(Runway, 5,  Center_x, Center_y,  wp->RunwayDir);
@@ -220,23 +271,28 @@ void MapWindow::DrawRunway(LKSurface& Surface, const WAYPOINT* wp, const RECT& r
   // StartupStore(_T(".......fscale=%f *1600=%f realscale = %f\n"), fScaleFact, fScaleFact*1600, MapWindow::zoom.RealScale());
 
 
-  if( MapWindow::zoom.RealScale() <= scale_drawradio ) 
+  if( !picto && (MapWindow::zoom.RealScale() <= scale_drawradio)  ) 
   {
 
 	const auto hfOld = Surface.SelectObject(MapWindow::zoom.RealScale() <= scale_bigfont
                                                 ? LK8PanelUnitFont
-                                                : LK8UnitFont);
-
+                                                : LK8GenericVar02Font);
+        #ifndef UNDITHER
 	if (INVERTCOLORS)
 		Surface.SelectObject(LKBrush_Petrol);
 	else
 		Surface.SelectObject(LKBrush_LightCyan);
+        #else
+	if (INVERTCOLORS)
+		Surface.SelectObject(LKBrush_Black);
+	else
+		Surface.SelectObject(LKBrush_White);
+        #endif
 
 	unsigned int offset = p + NIBLSCALE(1) ;
-	if( !picto)
 	{
 		if ( _tcslen(wp->Freq)>0 ) {
-			MapWindow::LKWriteBoxedText(Surface,DrawRect,wp->Freq, Center_x- offset, Center_y -offset, 0, WTALIGN_RIGHT, RGB_WHITE, RGB_BLACK);
+			MapWindow::LKWriteBoxedText(Surface,rc,wp->Freq, Center_x- offset, Center_y -offset, 0, WTALIGN_RIGHT, RGB_WHITE, RGB_BLACK);
 		}
 
 		//
@@ -244,13 +300,13 @@ void MapWindow::DrawRunway(LKSurface& Surface, const WAYPOINT* wp, const RECT& r
 		//
 		if (MapWindow::zoom.RealScale() <=scale_fullinfos) {
 			if ( _tcslen(wp->Code)==4 ) {
-				MapWindow::LKWriteBoxedText(Surface,DrawRect,wp->Code,Center_x + offset, Center_y - offset, 0, WTALIGN_LEFT, RGB_WHITE,RGB_BLACK);
+				MapWindow::LKWriteBoxedText(Surface,rc,wp->Code,Center_x + offset, Center_y - offset, 0, WTALIGN_LEFT, RGB_WHITE,RGB_BLACK);
 			}
 
 			if (wp->Altitude >0) {
 				TCHAR tAlt[20];
 				_stprintf(tAlt,_T("%.0f %s"),wp->Altitude*ALTITUDEMODIFY,Units::GetUnitName(Units::GetUserAltitudeUnit()));
-				MapWindow::LKWriteBoxedText(Surface,DrawRect,tAlt, Center_x + offset, Center_y + offset, 0, WTALIGN_LEFT, RGB_WHITE, RGB_BLACK);
+				MapWindow::LKWriteBoxedText(Surface,rc,tAlt, Center_x + offset, Center_y + offset, 0, WTALIGN_LEFT, RGB_WHITE, RGB_BLACK);
 			}
 
 		}
