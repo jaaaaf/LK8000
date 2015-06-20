@@ -208,6 +208,8 @@ EBROWSE         :=ebrowse
 
 GCCVERSION = $(shell $(CXX) --version | grep ^$(TCPATH) | sed 's/^.* //g')
 
+$(info GCC VERSION : $(GCCVERSION))
+
 ######## output files
 ifeq ($(CONFIG_LINUX),y)
     SUFFIX :=
@@ -542,6 +544,12 @@ SCREEN := \
 	$(SRC_SCREEN)/LKSurface.cpp \
 	$(SRC_SCREEN)/LKWindowSurface.cpp \
 	$(SRC_SCREEN)/LKBitmapSurface.cpp \
+
+ifeq ($(CONFIG_WIN32),y)
+SCREEN += \
+	$(SRC_SCREEN)/GDI/AlphaBlend.cpp \
+	
+endif
 	
 LIBRARY	:=\
 	$(LIB)/bsearch.cpp \
@@ -1176,7 +1184,6 @@ cxx-flags	=$(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) $(CPPFLAGS_$(dirtarget)) $(TARGET
 .PHONY: FORCE all clean cleani tags rebuild cppcheck
 
 all:	$(DISTRIB_OUTPUT) $(PNG) $(MASKED_PNG) $(OUTPUTS)
-	@$(NQ)echo "GCCVERSION : $(GCCVERSION)"
 	
 rebuild:
 	@$(MAKE) clean
