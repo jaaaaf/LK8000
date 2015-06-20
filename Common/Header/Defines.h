@@ -96,7 +96,7 @@
 
 #define LKFORK		"LK8000"
 #define LKVERSION	"BrunoTL"
-#define LKRELEASE	"Experimental"
+#define LKRELEASE	"Experimental0620"
 
 #define LKDATADIR	"LK8000"
 #define LKPROFILE	"DEFAULT_PROFILE.prf"
